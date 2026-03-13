@@ -1,10 +1,41 @@
-# 🩸 Blood Cell Detection with YOLOv8
-> **Thesis Project** — Development of a Domain Expert using a Large Language Model  
-> **Stage 1** — Vision Model for Blood Cell Detection
+# 🩸 Blood Cell Domain Expert — LLM-Powered Medical AI
+
+> **Thesis:** Development of a Domain Expert using a Large Language Model  
+> A hybrid medical AI system combining computer vision with LLM reasoning
+> for automated blood smear analysis and clinical interpretation.
 
 ---
 
-## 📊 Results
+## 🏗️ System Architecture
+```
+Blood Smear Image
+       ↓
+┌─────────────────────────┐
+│  Stage 1 — YOLOv8s      │  ✅ Complete
+│  Detects WBC·RBC·Plt    │
+└────────────┬────────────┘
+             ↓
+┌─────────────────────────┐
+│  Stage 2 — EfficientNet │  🔄 In Progress
+│  Classifies WBC subtypes│
+└────────────┬────────────┘
+             ↓
+      Structured JSON
+             ↓
+┌─────────────────────────┐
+│  Stage 3 — LLM + RAG    │  ⏳ Upcoming
+│  Clinical Interpretation│
+└────────────┬────────────┘
+             ↓
+      Clinical Report
+```
+
+---
+
+## 📁 Project Stages
+
+### ✅ Stage 1 — Blood Cell Detection (YOLOv8s)
+**Goal:** Detect and count WBC, RBC, and Platelets in blood smear images
 
 | Metric | Score |
 |--------|-------|
@@ -13,120 +44,53 @@
 | Precision | 0.9759 |
 | Recall | 0.9606 |
 
-### Per-Class Performance
-
-| Class | mAP@0.50 | Notes |
-|-------|----------|-------|
-| WBC | 0.9950 | Perfect recall (1.000) |
-| RBC | 0.9900 | Most common cell |
-| Platelets | 0.9700 | Smallest cell type |
+👉 [View Stage 1 Details](stage1_detection/README.md)
 
 ---
 
-## 🔍 Sample Predictions
+### 🔄 Stage 2 — WBC Classification (EfficientNet)
+**Goal:** Sub-classify white blood cells into 5 types
+(Neutrophil · Lymphocyte · Monocyte · Eosinophil · Basophil)
 
-![Predictions](predictions.png)
+> Results will be added after training
 
----
-
-## 📈 Training Curves
-
-![Training Curves](training_curves.png)
+👉 [View Stage 2 Details](stage2_classification/README.md)
 
 ---
 
-## 🔲 Confusion Matrix
+### ⏳ Stage 3 — Clinical LLM + RAG
+**Goal:** Generate clinical interpretation from vision model outputs
 
-![Confusion Matrix](confusion_matrix.png)
+> Results will be added after implementation
 
----
-
-## 📉 Precision-Recall Curve
-
-![PR Curve](PR_curve.png)
+👉 [View Stage 3 Details](stage3_llm_rag/README.md)
 
 ---
 
-## 📉 F1 Curve
+## 🛠️ Tech Stack
 
-![F1 Curve](F1_curve.png)
-
----
-
-## 🏗️ Full Pipeline Architecture
-```
-Blood Smear Image
-       ↓
-[ YOLOv8s — Stage 1 ]
-  detects WBC · RBC · Platelets
-       ↓
-[ Structured JSON Summary ]
-  cell counts · ratios · flags
-       ↓
-[ LLM + RAG — Stage 2 ]
-  clinical interpretation
-  differential diagnosis
-       ↓
-  Final Clinical Report
-```
+| Component | Technology |
+|-----------|-----------|
+| Cell Detection | YOLOv8s (Ultralytics) |
+| WBC Classification | EfficientNet-B0 (PyTorch) |
+| LLM | GPT-4o / Mistral-7B |
+| RAG | LangChain + ChromaDB |
+| Embeddings | sentence-transformers |
+| Knowledge Base | PubMed Open Access |
+| Training | Google Colab (T4 GPU) |
 
 ---
 
-## 📦 Dataset
+## 📦 Datasets
 
-| | |
-|---|---|
-| **Name** | TXL-PBC |
-| **Images** | 1,260 |
-| **Annotations** | 18,143 bounding boxes |
-| **Classes** | WBC, RBC, Platelets |
-| **Format** | YOLO (.txt labels) |
-| **Source** | https://github.com/lugan113/TXL-PBC_Dataset |
-
----
-
-## ⚙️ Training Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Model | YOLOv8s (11.2M parameters) |
-| Pretrained on | COCO (118k images) |
-| Epochs | 50 (early stopping) |
-| Image size | 640 x 640 |
-| Batch size | 16 |
-| Optimizer | AdamW |
-| Learning rate | 0.001 |
-| GPU | Tesla T4 |
-| Training time | 0.301 hours |
-
----
-
-## 🚀 How to Run Inference
-```python
-from ultralytics import YOLO
-
-model = YOLO('best.pt')
-results = model.predict('blood_smear.jpg', conf=0.25)
-results[0].show()
-```
-
----
-
-## 📄 Full Report
-
-Download [report.pdf](report.pdf) for the complete thesis report including
-all figures, metrics, and next steps.
-
----
-
-## 📚 References
-
-- Jocher et al. (2023). Ultralytics YOLOv8
-- TXL-PBC Dataset — https://github.com/lugan113/TXL-PBC_Dataset
+| Stage | Dataset | Images | Classes |
+|-------|---------|--------|---------|
+| Detection | TXL-PBC | 1,260 | 3 |
+| Classification | PBC Mendeley | 17,092 | 8 |
+| RAG Knowledge | PubMed Hematology | ~100 papers | - |
 
 ---
 
 ## ⚠️ Disclaimer
-
 Research prototype only. Not a certified medical device.
 Always consult a qualified hematologist.
