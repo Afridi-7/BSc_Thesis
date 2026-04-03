@@ -1,14 +1,24 @@
 # Blood Smear Domain Expert
 
-End-to-end BSc thesis project for a domain-specialized hematology assistant that integrates:
+End-to-end BSc thesis repository for a hematology decision-support pipeline that combines computer vision and retrieval-augmented clinical reasoning.
 
-1. Stage 1: YOLOv8 blood cell detection
-2. Stage 2: EfficientNet WBC subtype classification with uncertainty
-3. Stage 3: RAG plus Gemini clinical reasoning
+The system is implemented as three linked stages:
 
-The codebase is organized as three executable notebooks that are now aligned on schema, batch handling, safety behavior, and reproducibility outputs.
+1. Stage 1: YOLOv8 blood cell detection.
+2. Stage 2: EfficientNet WBC subtype classification with uncertainty quantification.
+3. Stage 3: RAG + LLM clinical reasoning with safety and evidence constraints.
 
-## Repository Layout
+This README is written as a paper-ready project log so methods, experiments, and outputs are easy to transfer into thesis chapters.
+
+## Research Objective
+
+Build a clinically safer AI assistant for peripheral blood smear interpretation by:
+
+1. Detecting cell categories (WBC, RBC, Platelet).
+2. Classifying WBC subtypes with calibrated uncertainty signals.
+3. Producing evidence-grounded clinical reasoning with citations and abstention when evidence is weak.
+
+## Repository Structure
 
 ```
 BSc_Thesis/
@@ -18,185 +28,204 @@ BSc_Thesis/
 │   └── results/
 ├── Efficientnet_classification/
 │   ├── Efficientnet_classification.ipynb
+│   ├── README.md
 │   └── results/
 └── LLM_RAG_Pipline/
     ├── LLM_Rag_pipline.ipynb
+    ├── pdfs/
     └── results/
 ```
 
-## Pipeline Summary
+## End-to-End Method
 
 ### Stage 1: Detection (YOLOv8)
 
-1. Detects WBC, RBC, and Platelet objects from smear images.
-2. Supports single-image and multi-image input.
-3. Produces aggregate statistics for batch mode.
+1. Detects WBC, RBC, Platelet instances from smear images.
+2. Supports both single-image and batch-image inference.
+3. Produces counts and aggregate batch statistics used by downstream stages.
 
-### Stage 2: Classification (EfficientNet)
+Expected Stage 1 outputs:
 
-1. Classifies WBC subtype from crops.
-2. Uses Monte Carlo Dropout during inference for uncertainty estimation.
-3. Produces confidence, entropy, variance, and flagged uncertainty markers.
+1. Cell count summary by class.
+2. Optional visual overlays for thesis figures.
+3. Run metadata for reproducibility.
 
-### Stage 3: Clinical Reasoning (RAG + Gemini)
+### Stage 2: WBC Classification + Uncertainty (EfficientNet-B0)
 
-1. Builds retrieval query from structured vision summary.
-2. Retrieves evidence chunks from hematology knowledge base.
-3. Generates structured, safety-aware reasoning with citations.
-4. Abstains and raises safety flags when evidence is insufficient.
+1. Receives WBC crops and predicts subtype probabilities.
+2. Uses Monte Carlo Dropout at inference time.
+3. Computes confidence, entropy, variance, and uncertainty flags.
 
-## Cross-Notebook Output Contract
+Uncertainty behavior:
 
-The following required keys are preserved for backward compatibility:
+1. High confidence + low entropy: low uncertainty.
+2. Intermediate values: medium uncertainty.
+3. Low confidence or high entropy: high uncertainty and review flag.
 
-1. cell_counts
-2. total_cells
-3. wbc_differential
-4. uncertainty_summary
+### Stage 3: RAG + LLM Clinical Reasoning
 
-Additive keys used for batch mode and analysis:
+1. Builds a retrieval query from structured vision summary.
+2. Retrieves hematology evidence chunks from PDF-derived knowledge base.
+3. Calls OpenAI `gpt-4o` for structured JSON reasoning.
+4. Applies safety guardrails and abstention logic.
 
-1. image_paths
-2. image_count
-3. cell_count_stats:
-   1. mean
-   2. variance
-4. batch_mode
-5. skipped_paths
+Important note:
+
+1. Some function names still contain `gemini` from earlier iterations, but active generation is now OpenAI (`gpt-4o`).
+
+## Unified Data Contract (Cross-Notebook)
+
+Required fields used across stages:
+
+1. `cell_counts`
+2. `total_cells`
+3. `wbc_differential`
+4. `uncertainty_summary`
+
+Additive batch-analysis fields:
+
+1. `image_paths`
+2. `image_count`
+3. `cell_count_stats.mean`
+4. `cell_count_stats.variance`
+5. `batch_mode`
+6. `skipped_paths`
 
 Class compatibility rule:
 
-1. Canonical internal class: Platelet
-2. Compatibility mapping accepts Platelets
+1. Canonical label: `Platelet`
+2. Compatibility alias accepted in older outputs: `Platelets`
 
-## Notebook Responsibilities
+## Safety Design
 
-### YOLO Notebook
+The reasoning layer is explicitly conservative:
 
-Path: YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb
+1. Output must be evidence-grounded and citation-aware.
+2. Uncertainty from vision stage propagates to reasoning stage.
+3. If evidence is weak, model should avoid definitive diagnosis.
+4. Safety flags are emitted for downstream review.
 
-Main responsibilities:
+Core flags used in reports:
 
-1. Stage 1 model training/evaluation and prediction visualization.
-2. Reusable Stage 1 single plus batch inference helpers.
-3. Aggregated detection stats (total, mean, variance).
-4. Reproducibility metadata export.
-5. Stage 1 smoke checks.
+1. `INSUFFICIENT_EVIDENCE`
+2. `HIGH_UNCERTAINTY`
+3. `NON_JSON_RESPONSE` (fallback handling)
 
-Generated artifacts include:
+## Experimental and Evaluation Components
 
-1. figures/predictions.png
-2. results/run_metadata_yolo.json
+Implemented evaluation utilities include:
 
-### EfficientNet Notebook
+1. Retrieval proxy metrics:
+   1. Recall@k proxy by expected-term matching.
+   2. Citation coverage.
+2. Generation quality checks:
+   1. JSON schema validity rate.
+   2. Citation-attached-claim rate.
+   3. Uncertainty-trigger rate.
+3. Mode comparison:
+   1. Baseline LLM-only.
+   2. RAG.
+   3. RAG + uncertainty-aware prompting.
 
-Path: Efficientnet_classification/Efficientnet_classification.ipynb
+These are saved as JSON/CSV artifacts for tables and appendix material.
 
-Main responsibilities:
+## Runtime and Environment Notes
 
-1. Stage 2 model training and fine-tuning.
-2. Stage 2 uncertainty-aware inference helpers.
-3. Single plus batch Stage 2 inference summaries.
-4. Reproducibility metadata export.
-5. Stage 2 smoke checks.
+### Recommended runtime
 
-Generated artifacts include:
+1. Google Colab with GPU for smooth end-to-end execution.
+2. VS Code Jupyter is supported with proper local setup.
 
-1. figures/predictions.png
-2. figures/confusion_matrix.png
-3. figures/training_curves.png
-4. results/stage2_uncertainty_summary.json
-5. results/run_metadata_efficientnet.json
+### Local VS Code requirements
 
-### LLM RAG Notebook
+1. Place model checkpoints in `./models` or set `THESIS_MODELS_DIR`.
+2. Ensure `OPENAI_API_KEY` is set in environment (or Colab Secrets in Colab).
+3. Keep notebook execution order consistent.
 
-Path: LLM_RAG_Pipline/LLM_Rag_pipline.ipynb
+Required model files for Stage 3 notebook:
 
-Main responsibilities:
+1. `yolov8s_blood.pt`
+2. `efficientnet_wbc_finetuned.pt`
 
-1. Combined Stage 1 and Stage 2 summary generation.
-2. RAG query construction and retrieval.
-3. Safety-aware structured LLM reasoning function.
-4. Evaluation utilities for retrieval and generation quality.
-5. Reproducibility metadata export.
-6. End-to-end smoke checks.
+## Execution Order (Full Thesis Pipeline)
 
-Generated artifacts include:
+1. `YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb`
+2. `Efficientnet_classification/Efficientnet_classification.ipynb`
+3. `LLM_RAG_Pipline/LLM_Rag_pipline.ipynb`
 
-1. figures/pipeline_output.png
-2. figures/uncertainty_analysis.png
-3. results/eval_summary_<timestamp>.json
-4. results/eval_modes_<timestamp>.csv
-5. results/run_metadata_llm_rag.json
+Within the LLM-RAG notebook, run top-to-bottom to ensure:
 
-## Safety and Clinical Guardrails
+1. Models are loaded.
+2. Retrieval index is built.
+3. `summary` is created before uncertainty visualization and evaluation cells.
 
-The reasoning stage enforces:
+## Generated Artifacts (Paper Evidence Map)
 
-1. Evidence-grounded output with citations.
-2. Uncertainty-aware wording.
-3. Non-definitive behavior when evidence is insufficient.
-4. Safety flag propagation, including:
-   1. INSUFFICIENT_EVIDENCE
-   2. HIGH_UNCERTAINTY
+### Stage 1 (YOLO)
 
-This project is decision-support research software, not a diagnostic medical device.
+Common outputs:
 
-## How To Run
+1. Detection figures (`predictions`, curves, confusion outputs depending on execution path).
+2. `results/run_metadata_yolo.json`.
 
-Recommended execution context:
+### Stage 2 (EfficientNet)
 
-1. Google Colab runtime with GPU enabled.
-2. Run each notebook from top to bottom.
-3. Keep notebook-specific results directories for outputs.
+Common outputs:
 
-Suggested run order for full thesis pipeline:
+1. `figures/confusion_matrix.png`
+2. `figures/training_curves.png`
+3. `figures/predictions.png`
+4. `results/stage2_uncertainty_summary.json`
+5. `results/run_metadata_efficientnet.json`
 
-1. YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb
-2. Efficientnet_classification/Efficientnet_classification.ipynb
-3. LLM_RAG_Pipline/LLM_Rag_pipline.ipynb
+### Stage 3 (LLM-RAG)
 
-## Smoke Test Checklist
+Common outputs:
 
-Run the smoke-check cells included in each notebook to verify:
+1. `figures/pipeline_output.png`
+2. `figures/uncertainty_analysis.png`
+3. `results/eval_summary_<timestamp>.json`
+4. `results/eval_modes_<timestamp>.csv`
+5. `results/run_metadata_llm_rag.json`
 
-1. Stage 1 single-image inference.
-2. Stage 1 batch inference.
-3. Stage 2 single-image uncertainty output.
-4. Stage 2 batch uncertainty output.
-5. RAG reasoning response generation.
-6. Evaluation utility output and result file creation.
-7. Required key presence in summary schema.
+## Thesis Writing Guide (Directly Reusable)
 
-## Reproducibility
+Use this section to build your paper structure quickly.
 
-Each notebook now writes run metadata JSON containing:
+### Methods chapter should include
 
-1. UTC timestamp
-2. Python version
-3. Platform info
-4. Device info
-5. Key package versions
+1. Three-stage architecture diagram (Detection -> Classification+Uncertainty -> RAG Reasoning).
+2. Stage 2 uncertainty equations/concepts (entropy, variance, MC dropout passes).
+3. Safety protocol and abstention policy.
+4. Output schema and interoperability contract.
 
-Use these metadata files in thesis appendix for reproducibility evidence.
+### Results chapter should include
+
+1. Detection performance visuals and counts.
+2. Classification performance and uncertainty distributions.
+3. Qualitative examples of reasoning with citations.
+4. Comparative table: baseline vs RAG vs RAG+uncertainty-aware.
+5. Cases that trigger `INSUFFICIENT_EVIDENCE` and why this improves safety.
+
+### Appendix should include
+
+1. Run metadata JSON files (all stages).
+2. Example output JSON schemas.
+3. Full prompt template used for reasoning.
+4. Error handling and fallback behavior (retrieval fallback, JSON fallback).
 
 ## Known Limitations
 
-1. Results are dependent on notebook runtime environment and available GPU memory.
-2. Some editor diagnostics in local VS Code may show unresolved imports for Colab-only packages.
-3. LLM JSON compliance is strongly encouraged by prompt and guarded by fallback logic but still model-dependent.
-4. Clinical outputs must be reviewed by qualified professionals.
+1. Performance and runtime depend on available GPU/CPU and memory.
+2. Some environments may block native extensions used by vector stores.
+3. Retrieval quality depends on PDF quality and extraction success.
+4. LLM output structure is guarded but still probabilistic.
+5. This is research software and not clinically validated for deployment.
 
-## Thesis-Ready Evidence To Include
+## Compliance and Ethics Note
 
-For submission, include:
+This repository is an academic prototype for decision support research.
 
-1. Detection and classification figures from figures directories.
-2. stage2_uncertainty_summary.json.
-3. eval_summary_<timestamp>.json and eval_modes_<timestamp>.csv.
-4. run_metadata JSON files from all three notebooks.
-5. Short explanation of safety flags and abstention behavior.
-
-## Disclaimer
-
-This repository is an academic research prototype for a BSc thesis. It is not a certified medical device and must not be used as a standalone clinical decision system.
+1. It is not a certified medical device.
+2. It must not be used as a standalone diagnostic tool.
+3. Clinical interpretation requires qualified human oversight.
