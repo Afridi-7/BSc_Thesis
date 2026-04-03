@@ -1,406 +1,202 @@
-# 🩸 Blood Smear Domain Expert
-### Development of a Domain Expert using a Large Language Model
+# Blood Smear Domain Expert
 
-> A complete end-to-end AI pipeline that analyses peripheral blood smear images and generates clinical reports — combining object detection, image classification, and LLM reasoning into a single medical AI system.
+End-to-end BSc thesis project for a domain-specialized hematology assistant that integrates:
 
-<p align="center">
-  <img src="stage1_detection/results/predictions.png" width="800"/>
-</p>
+1. Stage 1: YOLOv8 blood cell detection
+2. Stage 2: EfficientNet WBC subtype classification with uncertainty
+3. Stage 3: RAG plus Gemini clinical reasoning
 
----
+The codebase is organized as three executable notebooks that are now aligned on schema, batch handling, safety behavior, and reproducibility outputs.
 
-## 🎯 What This System Does
-
-A doctor uploads a blood smear image. In seconds the system returns:
-
-- ✅ **Cell counts** — how many WBC, RBC, and Platelets are present
-- ✅ **WBC subtype** — neutrophil, lymphocyte, monocyte, eosinophil, basophil, etc.
-- ✅ **Clinical interpretation** — what the findings mean medically
-- ✅ **Differential diagnosis** — 2-3 conditions consistent with the findings
-- ✅ **Recommended tests** — what the clinician should order next
-
----
-
-## 🏗️ System Architecture
+## Repository Layout
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    BLOOD SMEAR IMAGE INPUT                       │
-└────────────────────────────┬────────────────────────────────────┘
-                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                  STAGE 1 — YOLOv8s Detection                    │
-│                                                                  │
-│   Scans entire image → draws bounding boxes around every cell   │
-│   Detects: WBC ● RBC ● Platelet                                 │
-│   Crops each WBC for Stage 2                                     │
-│                                                                  │
-│   mAP@0.50 = 0.9849  │  Precision = 0.9759  │  Recall = 0.9606 │
-└────────────────────────────┬────────────────────────────────────┘
-                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│               STAGE 2 — EfficientNet-B0 Classification          │
-│                                                                  │
-│   Examines each WBC crop → identifies subtype                   │
-│   Classes: Neutrophil ● Lymphocyte ● Monocyte ● Eosinophil     │
-│            Basophil ● Erythroblast ● Immature Granulocyte       │
-│                                                                  │
-│   Accuracy = 98.48%  (fine-tuned from 87.22% baseline)         │
-└────────────────────────────┬────────────────────────────────────┘
-                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                      JSON BRIDGE                                 │
-│                                                                  │
-│   Converts raw model outputs into structured clinical summary   │
-│   { cell_counts, wbc_differential, total_cells }               │
-└────────────────────────────┬────────────────────────────────────┘
-                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│              STAGE 3 — RAG + Gemini 2.5 Flash                   │
-│                                                                  │
-│   ChromaDB retrieves relevant haematology knowledge             │
-│   Gemini reasons step by step like a senior haematologist       │
-│   Produces: interpretation ● diagnosis ● recommendations        │
-└─────────────────────────────────────────────────────────────────┘
-                             ↓
-                    CLINICAL REPORT OUTPUT
-```
-
----
-
-## 📊 Results at a Glance
-
-### Stage 1 — YOLOv8s Blood Cell Detection
-
-| Metric | Score |
-|--------|-------|
-| **mAP @ 0.50** | **0.9849** |
-| mAP @ 0.50:0.95 | 0.8762 |
-| Precision | 0.9759 |
-| Recall | 0.9606 |
-
-| Class | mAP@0.50 | Notes |
-|-------|----------|-------|
-| WBC | 0.9950 | Perfect recall — 1.000 |
-| RBC | 0.9900 | Most common cell |
-| Platelet | 0.9700 | Smallest cell type |
-
-### Stage 2 — EfficientNet-B0 WBC Classification
-
-| Training Phase | Accuracy | Strategy |
-|----------------|----------|----------|
-| Phase 1 — Frozen backbone | 87.22% | Feature extraction only |
-| **Phase 2 — Fine-tuned** | **98.48%** | Full network update |
-| **Improvement** | **+11.26%** | |
-
-> **98.48% accuracy outperforms published benchmarks on the PBC dataset and exceeds typical expert haematologist inter-rater agreement (~96-97%)**
-
-### Stage 3 — RAG + Gemini Clinical Reasoning
-
-Sample findings from a real test image:
-
-```json
-{
-  "cell_counts": { "WBC": 1, "RBC": 13, "Platelet": 0 },
-  "wbc_differential": {
-    "erythroblast": { "count": 1, "percent": "100.0%" }
-  },
-  "total_cells": 14
-}
-```
-
-**Gemini's conclusion:**
-> *"The combined findings present severe pancytopenia with a circulating nucleated red blood cell — highly suggestive of bone marrow dysfunction. Differential diagnosis: Aplastic Anaemia, Acute Myeloid Leukaemia, Myelodysplastic Syndrome. Urgent bone marrow biopsy required."*
-
----
-
-## 📁 Repository Structure
-
-```
-blood-smear-domain-expert/
-│
+BSc_Thesis/
 ├── README.md
-│
-├── stage1_detection/
-│   ├── README.md
-│   ├── YOLOv8_BloodCell_Detection.ipynb
+├── YOLOv8_detection/
+│   ├── YOLOv8_on_TBL_PBC_dataset.ipynb
 │   └── results/
-│       ├── predictions.png
-│       ├── training_curves.png
-│       ├── confusion_matrix.png
-│       ├── PR_curve.png
-│       ├── F1_curve.png
-│       └── report.pdf
-│
-├── stage2_classification/
-│   ├── README.md
-│   ├── EfficientNet_WBC_Classification.ipynb
+├── Efficientnet_classification/
+│   ├── Efficientnet_classification.ipynb
 │   └── results/
-│       ├── predictions.png
-│       ├── training_curves.png
-│       ├── confusion_matrix.png
-│       └── overfitting_check.png
-│
-└── stage3_llm_rag/
-    ├── README.md
-    ├── Stage3_RAG_Gemini.ipynb
+└── LLM_RAG_Pipline/
+    ├── LLM_Rag_pipline.ipynb
     └── results/
-        ├── pipeline_output.png
-        └── clinical_report.txt
 ```
 
----
+## Pipeline Summary
 
-## 🔬 Technical Deep Dive
+### Stage 1: Detection (YOLOv8)
 
-### Stage 1 — Why YOLOv8?
+1. Detects WBC, RBC, and Platelet objects from smear images.
+2. Supports single-image and multi-image input.
+3. Produces aggregate statistics for batch mode.
 
-YOLO (You Only Look Once) detects all objects in a single forward pass through the network — making it extremely fast. YOLOv8s was chosen for its balance of speed and accuracy (11.2M parameters).
+### Stage 2: Classification (EfficientNet)
 
-**Transfer Learning:** We started with COCO pretrained weights (118,000 images, 80 classes). The backbone already knew how to detect shapes, edges and textures. We replaced the detection head for our 3 classes and fine-tuned on TXL-PBC — training took only **0.301 hours** on a T4 GPU.
+1. Classifies WBC subtype from crops.
+2. Uses Monte Carlo Dropout during inference for uncertainty estimation.
+3. Produces confidence, entropy, variance, and flagged uncertainty markers.
 
-**Why mAP@0.50 matters:** A detection is correct only if the predicted bounding box overlaps ground truth by at least 50% (IoU ≥ 0.5). Our score of 0.9849 means 98.49% of detections were correct at this threshold.
+### Stage 3: Clinical Reasoning (RAG + Gemini)
 
----
+1. Builds retrieval query from structured vision summary.
+2. Retrieves evidence chunks from hematology knowledge base.
+3. Generates structured, safety-aware reasoning with citations.
+4. Abstains and raises safety flags when evidence is insufficient.
 
-### Stage 2 — Why EfficientNet?
+## Cross-Notebook Output Contract
 
-EfficientNet uses **compound scaling** — simultaneously scaling network depth, width, and resolution in a principled ratio. This achieves better accuracy per parameter than ResNet or VGG.
+The following required keys are preserved for backward compatibility:
 
-**Two-phase training strategy:**
+1. cell_counts
+2. total_cells
+3. wbc_differential
+4. uncertainty_summary
 
-```
-Phase 1 — Frozen backbone
-  ImageNet weights preserved
-  Only classifier head trains
-  Fast convergence → 87.22%
-         ↓
-Phase 2 — Fine-tuning
-  Entire network unfrozen
-  Very small lr (0.0001)
-  Backbone adapts to microscopy
-  → 98.48% accuracy
-```
+Additive keys used for batch mode and analysis:
 
-The second phase improved accuracy by +11.26% because unfreezing allowed the CNN to adapt its low-level feature detectors specifically to blood cell morphology — nuclear shape, cytoplasm granularity, cell size.
+1. image_paths
+2. image_count
+3. cell_count_stats:
+   1. mean
+   2. variance
+4. batch_mode
+5. skipped_paths
 
-**Overfitting check:** Training vs validation accuracy gap = 0.54% — confirming the model generalises well to unseen images.
+Class compatibility rule:
 
----
+1. Canonical internal class: Platelet
+2. Compatibility mapping accepts Platelets
 
-### Stage 3 — Why RAG instead of plain LLM?
+## Notebook Responsibilities
 
-| Plain LLM | RAG + LLM |
-|-----------|-----------|
-| May hallucinate reference ranges | Grounded in verified medical text |
-| Generic answers | Specific to the findings |
-| No evidence trail | Retrieved passages cited |
-| Outdated knowledge possible | Knowledge base controlled by us |
+### YOLO Notebook
 
-**How RAG works in our system:**
+Path: YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb
 
-```
-1. Medical textbooks chunked into 500-word passages
-2. Each passage embedded as a semantic vector
-   (sentence-transformers/all-MiniLM-L6-v2)
-3. Vectors stored in ChromaDB
-4. At inference: query built from JSON findings
-5. ChromaDB retrieves top-5 most relevant passages
-   (cosine similarity search)
-6. Gemini receives JSON + retrieved knowledge + reasoning prompt
-7. Chain-of-thought response generated
-```
-
-**Chain-of-thought prompting** forces Gemini to reason step by step:
-
-```
-STEP 1 → Assess each finding vs normal reference ranges
-STEP 2 → Identify the overall pattern across all findings
-STEP 3 → Differential diagnosis with justification for each
-STEP 4 → Specific recommended investigations
-STEP 5 → Final clinical interpretation summary
-```
-
----
-
-## 🛠️ Tech Stack
-
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Cell Detection | YOLOv8s (Ultralytics) | Locate all cells in smear |
-| WBC Classification | EfficientNet-B0 (timm) | Identify WBC subtype |
-| Vector Database | ChromaDB | Store medical knowledge |
-| Embeddings | sentence-transformers | Text → semantic vectors |
-| LLM | Gemini 2.5 Flash | Clinical reasoning |
-| Framework | PyTorch 2.10 | Deep learning |
-| Training | Google Colab T4 GPU | Free cloud GPU |
+Main responsibilities:
 
----
+1. Stage 1 model training/evaluation and prediction visualization.
+2. Reusable Stage 1 single plus batch inference helpers.
+3. Aggregated detection stats (total, mean, variance).
+4. Reproducibility metadata export.
+5. Stage 1 smoke checks.
 
-## 📦 Datasets
+Generated artifacts include:
 
-| Stage | Dataset | Images | Classes | Source |
-|-------|---------|--------|---------|--------|
-| Detection | TXL-PBC | 1,260 (18,143 boxes) | 3 | [GitHub](https://github.com/lugan113/TXL-PBC_Dataset) |
-| Classification | PBC Mendeley | 17,092 | 8 | [Kaggle](https://www.kaggle.com/datasets/differentiatedthyroidcancer/peripheral-blood-cell-images) |
-| RAG Knowledge | Open Haematology Textbooks | — | — | Open Textbook Library (CC-BY) |
+1. figures/predictions.png
+2. results/run_metadata_yolo.json
 
----
+### EfficientNet Notebook
 
-## ⚙️ Training Configuration
+Path: Efficientnet_classification/Efficientnet_classification.ipynb
 
-### Stage 1 — YOLOv8s
-
-| Parameter | Value |
-|-----------|-------|
-| Base model | YOLOv8s (pretrained COCO) |
-| Epochs | 50 (early stopping) |
-| Image size | 640 × 640 |
-| Batch size | 16 |
-| Optimizer | AdamW |
-| Learning rate | 0.001 |
-| Augmentation | HSV, flip, rotation, mosaic |
-| Training time | **0.301 hours** |
-
-### Stage 2 — EfficientNet-B0
-
-| Parameter | Phase 1 (Frozen) | Phase 2 (Fine-tuned) |
-|-----------|-----------------|---------------------|
-| Backbone | Frozen | Unfrozen |
-| Learning rate | 0.001 | 0.0001 |
-| Batch size | 32 | 32 |
-| Max epochs | 30 | 10 |
-| Early stopping | patience=5 | patience=5 |
-| Scheduler | ReduceLROnPlateau | ReduceLROnPlateau |
-| Best accuracy | 87.22% | **98.48%** |
+Main responsibilities:
 
----
-
-## 🚀 Quick Start
-
-### 1. Clone and install
-
-```bash
-git clone https://github.com/yourusername/blood-smear-domain-expert.git
-cd blood-smear-domain-expert
-pip install ultralytics timm chromadb sentence-transformers \
-            google-genai torch torchvision opencv-python
-```
-
-### 2. Run inference with trained models
-
-```python
-from ultralytics import YOLO
-import torch, timm, torch.nn as nn
-
-# Load Stage 1
-yolo_model = YOLO('stage1_detection/results/best.pt')
+1. Stage 2 model training and fine-tuning.
+2. Stage 2 uncertainty-aware inference helpers.
+3. Single plus batch Stage 2 inference summaries.
+4. Reproducibility metadata export.
+5. Stage 2 smoke checks.
 
-# Load Stage 2
-checkpoint    = torch.load('stage2_classification/results/best.pt')
-CATEGORIES    = checkpoint['categories']
-effnet        = timm.create_model('efficientnet_b0', pretrained=False)
-in_feat       = effnet.classifier.in_features
-effnet.classifier = nn.Sequential(
-    nn.Linear(in_feat, 1024), nn.ReLU(), nn.Dropout(0.3),
-    nn.Linear(1024, 512),     nn.ReLU(), nn.Dropout(0.3),
-    nn.Linear(512, len(CATEGORIES))
-)
-effnet.load_state_dict(checkpoint['model_state'])
-effnet.eval()
+Generated artifacts include:
 
-# Run full pipeline
-summary = build_json_summary('blood_smear.jpg', yolo_model, effnet)
-report  = ask_gemini_with_rag(summary)
-print(report)
-```
+1. figures/predictions.png
+2. figures/confusion_matrix.png
+3. figures/training_curves.png
+4. results/stage2_uncertainty_summary.json
+5. results/run_metadata_efficientnet.json
 
-### 3. Gemini API Key (free)
+### LLM RAG Notebook
 
-1. Go to **aistudio.google.com**
-2. Click **Get API key → Create API key**
-3. In Colab: add as secret named `GEMINI_API_KEY`
+Path: LLM_RAG_Pipline/LLM_Rag_pipline.ipynb
 
-```python
-from google.colab import userdata
-GEMINI_API_KEY = userdata.get('GEMINI_API_KEY')
-```
+Main responsibilities:
 
----
+1. Combined Stage 1 and Stage 2 summary generation.
+2. RAG query construction and retrieval.
+3. Safety-aware structured LLM reasoning function.
+4. Evaluation utilities for retrieval and generation quality.
+5. Reproducibility metadata export.
+6. End-to-end smoke checks.
 
-## 🧠 Key Contributions
+Generated artifacts include:
 
-**1. Multimodal Pipeline Design**
-Combining object detection, image classification, and language generation into a coherent medical reasoning system — each stage contributing capabilities the others cannot provide alone.
+1. figures/pipeline_output.png
+2. figures/uncertainty_analysis.png
+3. results/eval_summary_<timestamp>.json
+4. results/eval_modes_<timestamp>.csv
+5. results/run_metadata_llm_rag.json
 
-**2. The JSON Bridge**
-A structured architectural connector that translates quantitative vision model outputs into qualitative language model inputs — enabling two fundamentally different AI paradigms to collaborate.
+## Safety and Clinical Guardrails
 
-**3. RAG-Grounded Medical Reasoning**
-Using retrieval augmented generation ensures the LLM's clinical reasoning is anchored to verified haematology literature — not hallucinated training data.
+The reasoning stage enforces:
 
-**4. Chain-of-Thought Clinical Prompting**
-Prompt design that forces transparent, step-by-step reasoning mirroring actual clinical practice — making outputs interpretable and auditable by clinicians.
+1. Evidence-grounded output with citations.
+2. Uncertainty-aware wording.
+3. Non-definitive behavior when evidence is insufficient.
+4. Safety flag propagation, including:
+   1. INSUFFICIENT_EVIDENCE
+   2. HIGH_UNCERTAINTY
 
-**5. Two-Phase Training Strategy**
-Demonstrating that frozen-backbone feature extraction followed by full fine-tuning can improve classification accuracy by +11.26% — a reproducible training recipe for medical image classification.
+This project is decision-support research software, not a diagnostic medical device.
 
----
+## How To Run
 
-## 📋 WBC Types and Clinical Meaning
+Recommended execution context:
 
-| WBC Type | Normal % | High Suggests | Low Suggests |
-|----------|----------|--------------|--------------|
-| Neutrophil | 50-70% | Bacterial infection | Viral infection, drug effect |
-| Lymphocyte | 20-40% | Viral infection, CLL | HIV, immunosuppression |
-| Monocyte | 2-8% | TB, chronic infection | — |
-| Eosinophil | 1-4% | Allergy, parasites | — |
-| Basophil | 0-1% | CML, allergy | — |
-| Erythroblast | 0% | Bone marrow stress | — |
-| Immature Granulocyte | 0-5% | Severe infection, leukaemia | — |
+1. Google Colab runtime with GPU enabled.
+2. Run each notebook from top to bottom.
+3. Keep notebook-specific results directories for outputs.
 
----
+Suggested run order for full thesis pipeline:
 
-## ⚠️ Limitations
+1. YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb
+2. Efficientnet_classification/Efficientnet_classification.ipynb
+3. LLM_RAG_Pipline/LLM_Rag_pipline.ipynb
 
-- Cell counts are from a **single microscopy field** — not a full quantitative slide analysis
-- System has **not been clinically validated** on real patient data
-- RAG knowledge quality depends on the embedded medical sources
-- Erythroblast appearing under WBC class follows TXL-PBC dataset convention
+## Smoke Test Checklist
 
----
+Run the smoke-check cells included in each notebook to verify:
 
-## 🔭 Future Work
+1. Stage 1 single-image inference.
+2. Stage 1 batch inference.
+3. Stage 2 single-image uncertainty output.
+4. Stage 2 batch uncertainty output.
+5. RAG reasoning response generation.
+6. Evaluation utility output and result file creation.
+7. Required key presence in summary schema.
 
-- [ ] Whole slide image (WSI) analysis across multiple fields
-- [ ] Blast cell detection for acute leukaemia screening
-- [ ] RAG knowledge base expansion with PubMed open access papers
-- [ ] Clinical validation study with expert haematologist ground truth
-- [ ] Gradio web interface for non-technical clinical users
-- [ ] ONNX export for CPU deployment without GPU dependency
+## Reproducibility
 
----
+Each notebook now writes run metadata JSON containing:
 
-## 📚 References
+1. UTC timestamp
+2. Python version
+3. Platform info
+4. Device info
+5. Key package versions
 
-- Jocher, G. et al. (2023). *Ultralytics YOLOv8*. https://github.com/ultralytics/ultralytics
-- Tan, M. & Le, Q. (2019). *EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks*. ICML 2019.
-- Lewis, P. et al. (2020). *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks*. NeurIPS 2020.
-- Acevedo, A. et al. (2020). *A dataset of microscopic peripheral blood cell images for development of automatic recognition systems*. Mendeley Data.
-- TXL-PBC Dataset. https://github.com/lugan113/TXL-PBC_Dataset
-- Hendry, B.M. et al. *A Laboratory Guide to Clinical Hematology*. Open Textbook Library. (CC-BY)
-- WHO Reference Ranges for Blood Cell Counts. (Public Domain)
+Use these metadata files in thesis appendix for reproducibility evidence.
 
----
+## Known Limitations
 
-## ⚠️ Disclaimer
+1. Results are dependent on notebook runtime environment and available GPU memory.
+2. Some editor diagnostics in local VS Code may show unresolved imports for Colab-only packages.
+3. LLM JSON compliance is strongly encouraged by prompt and guarded by fallback logic but still model-dependent.
+4. Clinical outputs must be reviewed by qualified professionals.
 
-This system is a **research prototype** developed for academic purposes only. It is **not** a certified medical device and must **not** be used for clinical decision-making without review and confirmation by a qualified haematologist. All outputs are AI-generated and carry inherent uncertainty.
+## Thesis-Ready Evidence To Include
 
----
+For submission, include:
 
-<p align="center">
-  <b>Computer Science Thesis Project</b><br>
-  Development of a Domain Expert using a Large Language Model<br><br>
-  Built with PyTorch · Ultralytics · Gemini 2.5 Flash · ChromaDB · Google Colab
-</p>
+1. Detection and classification figures from figures directories.
+2. stage2_uncertainty_summary.json.
+3. eval_summary_<timestamp>.json and eval_modes_<timestamp>.csv.
+4. run_metadata JSON files from all three notebooks.
+5. Short explanation of safety flags and abstention behavior.
+
+## Disclaimer
+
+This repository is an academic research prototype for a BSc thesis. It is not a certified medical device and must not be used as a standalone clinical decision system.

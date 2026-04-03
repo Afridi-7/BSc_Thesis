@@ -1,132 +1,69 @@
-# 🩸 Blood Cell Detection with YOLOv8
-> **Thesis Project** — Development of a Domain Expert using a Large Language Model  
-> **Stage 1** — Vision Model for Blood Cell Detection
+# Stage 1 - YOLOv8 Detection Results
 
----
+This folder stores Stage 1 result artifacts from:
 
-## 📊 Results
+1. YOLOv8_on_TBL_PBC_dataset.ipynb
 
-| Metric | Score |
-|--------|-------|
-| mAP@0.50 | 0.9849 |
-| mAP@0.50:0.95 | 0.8762 |
-| Precision | 0.9759 |
-| Recall | 0.9606 |
+## Stage 1 Responsibilities
 
-### Per-Class Performance
+1. Detect WBC, RBC, and Platelet from blood smear images.
+2. Support both single-image and batch-image inference.
+3. Provide aggregate statistics for batch mode.
+4. Produce visualization output for thesis reporting.
 
-| Class | mAP@0.50 | Notes |
-|-------|----------|-------|
-| WBC | 0.9950 | Perfect recall (1.000) |
-| RBC | 0.9900 | Most common cell |
-| Platelets | 0.9700 | Smallest cell type |
+## Output Compatibility
 
----
+Stage 1 class compatibility rule:
 
-## 🔍 Sample Predictions
+1. Internal canonical class: Platelet
+2. Compatibility mapping accepts Platelets
 
-![Predictions](predictions.png)
+Batch-capable Stage 1 outputs include:
 
----
+1. image_paths
+2. image_count
+3. total_counts
+4. cell_count_stats
+5. skipped_paths
 
-## 📈 Training Curves
+## Expected Artifacts
 
-![Training Curves](training_curves.png)
+Depending on run path and execution order, expected outputs include:
 
----
+1. predictions.png
+2. training_curves.png
+3. confusion_matrix.png
+4. PR_curve.png
+5. F1_curve.png
+6. run_metadata_yolo.json
 
-## 🔲 Confusion Matrix
+Note:
 
-![Confusion Matrix](confusion_matrix.png)
+1. Some artifacts are generated in figures/ and some in results/ depending on notebook save calls.
+2. Keep both folders when exporting thesis evidence.
 
----
+## Validation Notes
 
-## 📉 Precision-Recall Curve
+The notebook includes smoke checks for:
 
-![PR Curve](PR_curve.png)
+1. Single-image Stage 1 inference.
+2. Batch-image Stage 1 inference.
+3. Aggregate mean and variance calculations.
 
----
+## Reproducibility
 
-## 📉 F1 Curve
+A metadata cell exports runtime metadata to:
 
-![F1 Curve](F1_curve.png)
+1. results/run_metadata_yolo.json
 
----
+It includes:
 
-## 🏗️ Full Pipeline Architecture
-```
-Blood Smear Image
-       ↓
-[ YOLOv8s — Stage 1 ]
-  detects WBC · RBC · Platelets
-       ↓
-[ Structured JSON Summary ]
-  cell counts · ratios · flags
-       ↓
-[ LLM + RAG — Stage 2 ]
-  clinical interpretation
-  differential diagnosis
-       ↓
-  Final Clinical Report
-```
+1. UTC timestamp
+2. Python version
+3. Platform
+4. Device
+5. Package versions
 
----
+## Disclaimer
 
-## 📦 Dataset
-
-| | |
-|---|---|
-| **Name** | TXL-PBC |
-| **Images** | 1,260 |
-| **Annotations** | 18,143 bounding boxes |
-| **Classes** | WBC, RBC, Platelets |
-| **Format** | YOLO (.txt labels) |
-| **Source** | https://github.com/lugan113/TXL-PBC_Dataset |
-
----
-
-## ⚙️ Training Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Model | YOLOv8s (11.2M parameters) |
-| Pretrained on | COCO (118k images) |
-| Epochs | 50 (early stopping) |
-| Image size | 640 x 640 |
-| Batch size | 16 |
-| Optimizer | AdamW |
-| Learning rate | 0.001 |
-| GPU | Tesla T4 |
-| Training time | 0.301 hours |
-
----
-
-## 🚀 How to Run Inference
-```python
-from ultralytics import YOLO
-
-model = YOLO('best.pt')
-results = model.predict('blood_smear.jpg', conf=0.25)
-results[0].show()
-```
-
----
-
-## 📄 Full Report
-
-Download [report.pdf](report.pdf) for the complete thesis report including
-all figures, metrics, and next steps.
-
----
-
-## 📚 References
-
-- Jocher et al. (2023). Ultralytics YOLOv8
-- TXL-PBC Dataset — https://github.com/lugan113/TXL-PBC_Dataset
-
----
-
-## ⚠️ Disclaimer
-
-Research prototype only. Not a certified medical device.
-Always consult a qualified hematologist.
+This is a research-stage artifact set for thesis evaluation only. It is not a clinical diagnostic output package.
