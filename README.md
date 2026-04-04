@@ -1,231 +1,589 @@
-# Blood Smear Domain Expert
+# Blood Smear Domain Expert 🔬
 
-End-to-end BSc thesis repository for a hematology decision-support pipeline that combines computer vision and retrieval-augmented clinical reasoning.
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-The system is implemented as three linked stages:
+**A clinically safer AI assistant for peripheral blood smear interpretation** combining computer vision and retrieval-augmented clinical reasoning.
 
-1. Stage 1: YOLOv8 blood cell detection.
-2. Stage 2: EfficientNet WBC subtype classification with uncertainty quantification.
-3. Stage 3: RAG + LLM clinical reasoning with safety and evidence constraints.
+End-to-end BSc thesis repository implementing a hematology decision-support pipeline with three integrated stages:
 
-This README is written as a paper-ready project log so methods, experiments, and outputs are easy to transfer into thesis chapters.
+1. **Stage 1**: YOLOv8 blood cell detection (WBC, RBC, Platelet)
+2. **Stage 2**: EfficientNet WBC subtype classification with Monte Carlo Dropout uncertainty quantification
+3. **Stage 3**: RAG + LLM (GPT-4o) clinical reasoning with safety constraints and evidence-grounded abstention
 
-## Research Objective
+## 🎯 Key Features
+
+- ✅ **Production-Ready Code**: Clean, modular Python architecture (no notebooks required)
+- ✅ **Safety-First Design**: 3-tier uncertainty propagation → explicit abstention when evidence is weak
+- ✅ **Configuration-Driven**: All parameters externalized in `config.yaml`
+- ✅ **Comprehensive Logging**: Structured logging with file and console output
+- ✅ **Easy CLI Interface**: Simple command-line usage with rich output formatting
+- ✅ **Full Documentation**: Every function documented with examples
+- ✅ **Reproducible**: Complete dependency management and metadata tracking
+
+## 📋 Research Objective
 
 Build a clinically safer AI assistant for peripheral blood smear interpretation by:
 
-1. Detecting cell categories (WBC, RBC, Platelet).
-2. Classifying WBC subtypes with calibrated uncertainty signals.
-3. Producing evidence-grounded clinical reasoning with citations and abstention when evidence is weak.
+1. **Detecting** cell categories (WBC, RBC, Platelet) with YOLOv8
+2. **Classifying** WBC subtypes with calibrated uncertainty signals (Monte Carlo Dropout)
+3. **Reasoning** with evidence-grounded clinical interpretations, citations, and abstention when evidence is weak
 
-## Repository Structure
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- CUDA-compatible GPU (optional, but recommended)
+- OpenAI API key for GPT-4o
+
+### Installation
+
+```bash
+# Clone repository
+cd BSc_Thesis
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create local environment file (recommended)
+copy .env.example .env  # Windows
+# cp .env.example .env  # Linux/Mac
+
+# Edit .env and set:
+# OPENAI_API_KEY=your-api-key-here
+
+# Set OpenAI API key
+$env:OPENAI_API_KEY='your-api-key-here'    # Windows PowerShell
+set OPENAI_API_KEY=your-api-key-here       # Windows CMD
+export OPENAI_API_KEY='your-api-key-here'  # Linux/Mac
+
+# Verify installation
+python main.py version
+python main.py smoke-test
+```
+
+### Quick Test
+
+```bash
+# Analyze a single blood smear image
+python main.py analyze path/to/blood_smear.jpg
+
+# Analyze batch of images
+python main.py analyze images/*.jpg --batch
+
+# Verbose logging
+python main.py analyze smear.jpg --verbose
+
+# Quick smoke checks
+python main.py smoke-test
+
+# Unit tests
+python -m pytest -q
+```
+
+---
+
+## 📁 Repository Structure
 
 ```
 BSc_Thesis/
-├── README.md
-├── YOLOv8_detection/
+├── src/                          # Production Python modules
+│   ├── config/                   # Configuration management
+│   │   ├── __init__.py
+│   │   └── config_loader.py      # YAML config loading & validation
+│   ├── detection/                # YOLOv8 detection module
+│   │   ├── __init__.py
+│   │   └── detector.py           # Cell detection implementation
+│   ├── classification/           # EfficientNet classification
+│   │   ├── __init__.py
+│   │   └── classifier.py         # WBC classification + MC Dropout
+│   ├── rag/                      # RAG components
+│   │   ├── __init__.py
+│   │   ├── pdf_processor.py      # PDF extraction & chunking
+│   │   ├── retriever.py          # ChromaDB semantic retrieval
+│   │   └── llm_reasoner.py       # GPT-4o clinical reasoning
+│   ├── utils/                    # Utilities
+│   │   ├── __init__.py
+│   │   ├── logging_config.py     # Logging setup
+│   │   ├── validators.py         # Input validation
+│   │   └── metrics.py            # Uncertainty & statistics
+│   └── pipeline.py               # Main orchestrator
+├── config/
+│   └── config.yaml               # Configuration file (ALL parameters)
+├── examples/                     # Example usage scripts
+│   ├── single_image_inference.py
+│   ├── batch_inference.py
+│   └── custom_configuration.py
+├── Notebooks/                    # Original Jupyter notebooks (archived)
 │   ├── YOLOv8_on_TBL_PBC_dataset.ipynb
-│   └── results/
-├── Efficientnet_classification/
 │   ├── Efficientnet_classification.ipynb
-│   ├── README.md
-│   └── results/
-└── LLM_RAG_Pipline/
-    ├── LLM_Rag_pipline.ipynb
-    ├── pdfs/
-    └── results/
+│   └── LLM_Rag_pipline.ipynb
+├── models/                       # Trained model checkpoints
+│   ├── yolov8s_blood.pt
+│   └── efficientnet_wbc_finetuned.pt
+├── LLM_RAG_Pipline/
+│   └── pdfs/                     # Hematology knowledge base PDFs
+│       ├── essentials_haematology.pdf
+│       ├── concise_haematology.pdf
+│       └── lab_guide_hematology.pdf
+├── results/                      # Analysis outputs (auto-generated)
+├── figures/                      # Generated visualizations
+├── logs/                         # Log files
+├── main.py                       # CLI entry point
+├── requirements.txt              # Python dependencies
+└── README.md                     # This file
 ```
 
-## End-to-End Method
+---
 
-### Stage 1: Detection (YOLOv8)
+## 🔧 Configuration
 
-1. Detects WBC, RBC, Platelet instances from smear images.
-2. Supports both single-image and batch-image inference.
-3. Produces counts and aggregate batch statistics used by downstream stages.
+All parameters are externalized in `config.yaml`. Key sections:
 
-Expected Stage 1 outputs:
+### Detection (YOLOv8)
+```yaml
+detection:
+  confidence_threshold: 0.25  # Detection confidence (0.0-1.0)
+  device: "auto"              # 'auto', 'cpu', 'cuda', or device ID
+  canonical_classes:
+    - "WBC"
+    - "RBC"
+    - "Platelet"
+```
 
-1. Cell count summary by class.
-2. Optional visual overlays for thesis figures.
-3. Run metadata for reproducibility.
+### Classification (EfficientNet + MC Dropout)
+```yaml
+classification:
+  mc_dropout_passes: 20  # Number of stochastic forward passes
+  uncertainty:
+    low:
+      min_confidence: 0.85
+      max_entropy: 0.3
+    medium:
+      min_confidence: 0.65
+      max_entropy: 0.6
+```
 
-### Stage 2: WBC Classification + Uncertainty (EfficientNet-B0)
+### RAG (Retrieval-Augmented Generation)
+```yaml
+rag:
+  chunking:
+    chunk_size: 500  # Words per chunk
+    overlap: 50      # Word overlap
+  retrieval:
+    top_k: 5  # Number of chunks to retrieve
+  embedding:
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+```
 
-1. Receives WBC crops and predicts subtype probabilities.
-2. Uses Monte Carlo Dropout at inference time.
-3. Computes confidence, entropy, variance, and uncertainty flags.
+### LLM (OpenAI GPT-4o)
+```yaml
+llm:
+  model_name: "gpt-4o"
+  temperature: 0.1  # Low for consistent medical reasoning
+  safety:
+    enable_abstention: true
+    propagate_vision_uncertainty: true
+    require_citations: true
+```
 
-Uncertainty behavior:
+---
 
-1. High confidence + low entropy: low uncertainty.
-2. Intermediate values: medium uncertainty.
-3. Low confidence or high entropy: high uncertainty and review flag.
+## 📖 Usage Examples
 
-### Stage 3: RAG + LLM Clinical Reasoning
+### Python API
 
-1. Builds a retrieval query from structured vision summary.
-2. Retrieves hematology evidence chunks from PDF-derived knowledge base.
-3. Calls OpenAI `gpt-4o` for structured JSON reasoning.
-4. Applies safety guardrails and abstention logic.
+```python
+from src.pipeline import BloodSmearPipeline
 
-Important note:
+# Initialize pipeline
+pipeline = BloodSmearPipeline()
 
-1. Some function names still contain `gemini` from earlier iterations, but active generation is now OpenAI (`gpt-4o`).
+# Analyze single image
+results = pipeline.analyze('blood_smear.jpg')
 
-## Unified Data Contract (Cross-Notebook)
+# Access results
+print(results['stage1_detection']['total_counts'])
+print(results['stage2_classification']['summary'])
+print(results['stage3_reasoning']['clinical_interpretation'])
+```
 
-Required fields used across stages:
+### Command Line
 
-1. `cell_counts`
-2. `total_cells`
-3. `wbc_differential`
-4. `uncertainty_summary`
+```bash
+# Single image analysis
+python main.py analyze smear.jpg
 
-Additive batch-analysis fields:
+# Batch processing
+python main.py analyze images/*.jpg --batch
 
-1. `image_paths`
-2. `image_count`
-3. `cell_count_stats.mean`
-4. `cell_count_stats.variance`
-5. `batch_mode`
-6. `skipped_paths`
+# Custom config
+python main.py analyze smear.jpg --config custom_config.yaml
 
-Class compatibility rule:
+# Test configuration
+python main.py test-config
 
-1. Canonical label: `Platelet`
-2. Compatibility alias accepted in older outputs: `Platelets`
+# Smoke test setup and asset paths
+python main.py smoke-test
 
-## Safety Design
+# Verbose output
+python main.py analyze smear.jpg --verbose
+```
 
-The reasoning layer is explicitly conservative:
+### Example Scripts
 
-1. Output must be evidence-grounded and citation-aware.
-2. Uncertainty from vision stage propagates to reasoning stage.
-3. If evidence is weak, model should avoid definitive diagnosis.
-4. Safety flags are emitted for downstream review.
+See `examples/` directory:
+- `single_image_inference.py` - Basic single-image analysis
+- `batch_inference.py` - Batch processing with statistics
+- `custom_configuration.py` - Using custom parameters
 
-Core flags used in reports:
+---
 
-1. `INSUFFICIENT_EVIDENCE`
-2. `HIGH_UNCERTAINTY`
-3. `NON_JSON_RESPONSE` (fallback handling)
+## 🏗️ System Architecture
 
-## Experimental and Evaluation Components
+### Three-Stage Pipeline
 
-Implemented evaluation utilities include:
+```
+Input Image(s)
+      ↓
+┌─────────────────────────────────────┐
+│ Stage 1: YOLOv8 Detection           │
+│  - Detect WBC, RBC, Platelet        │
+│  - Extract bounding boxes           │
+│  - Count cells by type              │
+└─────────────────────────────────────┘
+      ↓
+┌─────────────────────────────────────┐
+│ Stage 2: EfficientNet + MC Dropout  │
+│  - Classify WBC subtypes            │
+│  - 20 stochastic forward passes     │
+│  - Calculate uncertainty metrics    │
+│  - Flag high-uncertainty cells      │
+└─────────────────────────────────────┘
+      ↓
+┌─────────────────────────────────────┐
+│ Stage 3: RAG + LLM Reasoning        │
+│  - Build query from vision results  │
+│  - Retrieve evidence from PDFs      │
+│  - Generate clinical reasoning      │
+│  - Apply safety constraints         │
+│  - Abstain if evidence insufficient │
+└─────────────────────────────────────┘
+      ↓
+JSON Output + Clinical Report
+```
 
-1. Retrieval proxy metrics:
-   1. Recall@k proxy by expected-term matching.
-   2. Citation coverage.
-2. Generation quality checks:
-   1. JSON schema validity rate.
-   2. Citation-attached-claim rate.
-   3. Uncertainty-trigger rate.
-3. Mode comparison:
-   1. Baseline LLM-only.
-   2. RAG.
-   3. RAG + uncertainty-aware prompting.
+### Safety Mechanisms
 
-These are saved as JSON/CSV artifacts for tables and appendix material.
+**3-Tier Uncertainty Propagation:**
 
-## Runtime and Environment Notes
+1. **Vision Layer** (Stage 2)
+   - Monte Carlo Dropout uncertainty quantification
+   - Flags cells with high entropy/low confidence
 
-### Recommended runtime
+2. **Retrieval Layer** (Stage 3)
+   - Checks retrieval quality
+   - Sets `INSUFFICIENT_EVIDENCE` flag if < 80 chars retrieved
 
-1. Google Colab with GPU for smooth end-to-end execution.
-2. VS Code Jupyter is supported with proper local setup.
+3. **Reasoning Layer** (Stage 3)
+   - Propagates uncertainty flags to LLM prompt
+   - LLM trained to abstain when evidence is weak
+   - Explicit safety flags in output
 
-### Local VS Code requirements
+**Example Safety Flow:**
+```
+High entropy cell (0.8) detected
+  → Flag set in uncertainty_summary
+  → RAG query includes "uncertain morphology"
+  → Retrieved chunks on differential diagnoses
+  → OpenAI prompted with "HIGH_UNCERTAINTY flag"
+  → Output includes "requires_expert_review": true
+```
 
-1. Place model checkpoints in `./models` or set `THESIS_MODELS_DIR`.
-2. Ensure `OPENAI_API_KEY` is set in environment (or Colab Secrets in Colab).
-3. Keep notebook execution order consistent.
+---
 
-Required model files for Stage 3 notebook:
+## 🔬 Technical Details
 
-1. `yolov8s_blood.pt`
-2. `efficientnet_wbc_finetuned.pt`
+### Stage 1: Cell Detection
+- **Model**: YOLOv8 small (`yolov8s_blood.pt`)
+- **Classes**: WBC, RBC, Platelet
+- **Dataset**: TXL-PBC public dataset
+- **Confidence Threshold**: 0.25 (configurable)
 
-## Execution Order (Full Thesis Pipeline)
+### Stage 2: WBC Classification
+- **Model**: EfficientNet-B0 with custom classifier head
+- **Classes**: 8 WBC subtypes (basophil, eosinophil, erythroblast, ig, lymphocyte, monocyte, neutrophil, platelet)
+- **Uncertainty**: Monte Carlo Dropout (20 passes)
+- **Metrics**: Confidence, entropy, variance
+- **Thresholds**: LOW (conf≥0.85, H<0.3), MEDIUM (conf≥0.65, H<0.6), HIGH (flagged)
 
-1. `YOLOv8_detection/YOLOv8_on_TBL_PBC_dataset.ipynb`
-2. `Efficientnet_classification/Efficientnet_classification.ipynb`
-3. `LLM_RAG_Pipline/LLM_Rag_pipline.ipynb`
+### Stage 3: RAG + LLM
+- **Embedding**: sentence-transformers/all-MiniLM-L6-v2 (384-dim)
+- **Vector Store**: ChromaDB (with numpy fallback)
+- **Chunking**: 500 words, 50-word overlap
+- **Retrieval**: Top-5 cosine similarity
+- **LLM**: OpenAI GPT-4o (temperature=0.1)
+- **Knowledge Base**: 3 hematology PDFs (~200+ chunks)
 
-Within the LLM-RAG notebook, run top-to-bottom to ensure:
+### Dependencies
+- **PyTorch**: 2.0+ (CUDA support recommended)
+- **Ultralytics**: YOLOv8 implementation
+- **timm**: EfficientNet implementation
+- **ChromaDB**: Vector database
+- **OpenAI**: GPT-4o API
+- **sentence-transformers**: Embedding models
 
-1. Models are loaded.
-2. Retrieval index is built.
-3. `summary` is created before uncertainty visualization and evaluation cells.
+Full list: see `requirements.txt`
 
-## Generated Artifacts (Paper Evidence Map)
+---
 
-### Stage 1 (YOLO)
+## 📊 Output Format
 
-Common outputs:
+### JSON Structure
+```json
+{
+  "stage1_detection": {
+    "total_counts": {"WBC": 15, "RBC": 120, "Platelet": 40},
+    "cell_count_stats": {...},
+    "per_image": [...]
+  },
+  "stage2_classification": {
+    "predictions": [...],
+    "summary": {
+      "sample_count": 15,
+      "class_distribution": {"neutrophil": 8, "lymphocyte": 5, ...},
+      "flagged_count": 2,
+      "requires_expert_review": true
+    },
+    "uncertainty_summary": {...}
+  },
+  "stage3_reasoning": {
+    "clinical_interpretation": "...",
+    "key_findings": ["...", "..."],
+    "differential_diagnoses": ["... [Reference 1]", "..."],
+    "recommendations": ["...", "..."],
+    "safety_flags": ["HIGH_UNCERTAINTY"],
+    "requires_expert_review": true,
+    "citations_used": [1, 2, 3]
+  },
+  "metadata": {
+    "timestamp": "2024-01-01T12:00:00",
+    "execution_time_seconds": 45.2
+  }
+}
+```
 
-1. Detection figures (`predictions`, curves, confusion outputs depending on execution path).
-2. `results/run_metadata_yolo.json`.
+---
 
-### Stage 2 (EfficientNet)
+## ⚙️ Environment Setup
 
-Common outputs:
+### Required Environment Variables
+```bash
+# OpenAI API key (REQUIRED)
+$env:OPENAI_API_KEY='sk-...'           # Windows PowerShell
+set OPENAI_API_KEY=sk-...              # Windows CMD
+export OPENAI_API_KEY='sk-...'         # Linux/Mac
 
-1. `figures/confusion_matrix.png`
-2. `figures/training_curves.png`
-3. `figures/predictions.png`
-4. `results/stage2_uncertainty_summary.json`
-5. `results/run_metadata_efficientnet.json`
+# Optional: Custom model directory
+export THESIS_MODELS_DIR='/path/to/models'
 
-### Stage 3 (LLM-RAG)
+# Optional: Custom config directory
+export THESIS_CONFIG_DIR='/path/to/config'
+```
 
-Common outputs:
+### Model Files
+Place trained models in `models/` directory:
+- `yolov8s_blood.pt` - YOLOv8 detection weights
+- `efficientnet_wbc_finetuned.pt` - EfficientNet classification weights
 
-1. `figures/pipeline_output.png`
-2. `figures/uncertainty_analysis.png`
-3. `results/eval_summary_<timestamp>.json`
-4. `results/eval_modes_<timestamp>.csv`
-5. `results/run_metadata_llm_rag.json`
+Model resolution fallback order:
+1. Config path (`models.yolo_detection`, `models.efficientnet_classification`)
+2. `THESIS_MODELS_DIR` + model filename
+3. `models/` + model filename
 
-## Thesis Writing Guide (Directly Reusable)
+### PDF Knowledge Base
+Place hematology PDFs in `LLM_RAG_Pipline/pdfs/`:
+- `essentials_haematology.pdf`
+- `concise_haematology.pdf`
+- `lab_guide_hematology.pdf`
 
-Use this section to build your paper structure quickly.
+Missing PDF strategy is configurable via `rag.pdf_missing_strategy`:
+- `fail` (default): stop with actionable error
+- `warn`: continue with available PDFs
+- `download`: fetch missing PDFs from `rag.pdf_download_base_url`
 
-### Methods chapter should include
+---
 
-1. Three-stage architecture diagram (Detection -> Classification+Uncertainty -> RAG Reasoning).
-2. Stage 2 uncertainty equations/concepts (entropy, variance, MC dropout passes).
-3. Safety protocol and abstention policy.
-4. Output schema and interoperability contract.
+## 🧪 Testing & Validation
 
-### Results chapter should include
+### Test Configuration
+```bash
+python main.py test-config
+```
 
-1. Detection performance visuals and counts.
-2. Classification performance and uncertainty distributions.
-3. Qualitative examples of reasoning with citations.
-4. Comparative table: baseline vs RAG vs RAG+uncertainty-aware.
-5. Cases that trigger `INSUFFICIENT_EVIDENCE` and why this improves safety.
+### Smoke Test
+```bash
+python main.py smoke-test
+```
 
-### Appendix should include
+### Unit Tests
+```bash
+python -m pytest -q
+```
 
-1. Run metadata JSON files (all stages).
-2. Example output JSON schemas.
-3. Full prompt template used for reasoning.
-4. Error handling and fallback behavior (retrieval fallback, JSON fallback).
+### Run Examples
+```bash
+# From examples directory
+cd examples
+python single_image_inference.py
+python batch_inference.py
+python custom_configuration.py
+```
 
-## Known Limitations
+---
 
-1. Performance and runtime depend on available GPU/CPU and memory.
-2. Some environments may block native extensions used by vector stores.
-3. Retrieval quality depends on PDF quality and extraction success.
-4. LLM output structure is guarded but still probabilistic.
-5. This is research software and not clinically validated for deployment.
+## ⚠️ Troubleshooting
 
-## Compliance and Ethics Note
+- `OpenAI API key not found`:
+  - Add `OPENAI_API_KEY=...` to `.env` or set the environment variable in your shell.
+- `Model file not found`:
+  - Ensure checkpoints exist in `models/` or set `THESIS_MODELS_DIR`.
+- `Missing required PDF files`:
+  - Add PDFs under `LLM_RAG_Pipline/pdfs/` or use `rag.pdf_missing_strategy`.
+- PowerShell wildcard paths:
+  - Pass explicit paths if glob expansion fails, e.g. `python main.py analyze .\images\a.jpg .\images\b.jpg --batch`.
 
-This repository is an academic prototype for decision support research.
+---
 
-1. It is not a certified medical device.
-2. It must not be used as a standalone diagnostic tool.
-3. Clinical interpretation requires qualified human oversight.
+## 🔄 Migration Note
+
+Notebook-to-Python parity status:
+- Stage 2 now classifies WBC crops across all input images (not first image only).
+- Uncertainty summary now uses canonical `flagged_count` with backward-compatible `flagged_samples`.
+- Stage 3 keeps safety-aware abstention and citation grounding.
+- Notebook visualization extras remain outside CLI runtime by design.
+
+---
+
+## 📝 Thesis Writing Guide
+
+### Methods Chapter Should Include:
+1. Three-stage architecture diagram (Detection → Classification+Uncertainty → RAG Reasoning)
+2. Monte Carlo Dropout uncertainty equations
+3. Safety protocol and abstention policy
+4. Data contract and interoperability schema
+
+### Results Chapter Should Include:
+1. Detection performance (mAP, precision, recall)
+2. Classification accuracy + uncertainty distributions
+3. Qualitative reasoning examples with citations
+4. Comparative analysis: baseline vs RAG vs RAG+uncertainty
+5. Safety effectiveness: cases triggering `INSUFFICIENT_EVIDENCE`
+
+### Appendix Should Include:
+1. Run metadata JSON files
+2. Example output schemas
+3. Complete prompt templates
+4. Configuration reference
+
+---
+
+## ⚠️ Known Limitations
+
+1. **Performance**: Depends on available GPU/CPU resources
+2. **PDF Quality**: Retrieval quality depends on PDF text extraction success (no OCR fallback)
+3. **LLM Output**: Structure is validated but remains probabilistic
+4. **Clinical Validation**: Research software only - **NOT a certified medical device**
+5. **Scalability**: Single-node inference (no distributed computing)
+
+---
+
+## 🔐 Safety & Ethics Notice
+
+This repository contains an **academic prototype for decision support research**.
+
+**CRITICAL DISCLAIMERS:**
+- ❌ NOT a certified medical device
+- ❌ NOT for standalone diagnostic use
+- ❌ NOT clinically validated for deployment
+- ✅ Requires qualified human oversight
+- ✅ For research and educational purposes only
+
+**Clinical Use Warning:**
+This system is designed to **assist**, not replace, qualified medical professionals. All automated interpretations must be reviewed and validated by licensed practitioners before any clinical decision-making.
+
+---
+
+## 📚 References & Datasets
+
+### Datasets Used:
+- **TXL-PBC**: Public blood cell dataset for detection training
+  - Repository: `lugan113/TXL-PBC_Dataset`
+
+### Knowledge Base:
+- Essentials of Haematology (public domain)
+- Concise Haematology textbook (public domain)
+- Laboratory Guide to Hematology (public domain)
+
+### Models:
+- **YOLOv8**: Ultralytics implementation
+- **EfficientNet-B0**: timm implementation
+- **Sentence Transformers**: all-MiniLM-L6-v2
+- **GPT-4o**: OpenAI API
+
+---
+
+## 🤝 Contributing
+
+This is a thesis project repository. If you find issues or have suggestions:
+
+1. Check existing issues
+2. Open a new issue with detailed description
+3. For code contributions, open a pull request
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see LICENSE file for details.
+
+---
+
+## 🎓 Citation
+
+If you use this code in your research, please cite:
+
+```bibtex
+@misc{bloodsmear2024,
+  title={Blood Smear Domain Expert: A Safety-Aware Clinical AI Assistant},
+  author={[Your Name]},
+  year={2024},
+  school={[Your University]},
+  type={Bachelor's Thesis}
+}
+```
+
+---
+
+## 📧 Contact
+
+For questions about this thesis project:
+- **Author**: [Your Name]
+- **Institution**: [Your University]
+- **Email**: [Your Email]
+
+---
+
+## 🙏 Acknowledgments
+
+- Dataset providers (TXL-PBC)
+- Open-source community (PyTorch, Ultralytics, OpenAI)
+- Thesis supervisor(s)
+- [Other acknowledgments]
+
+---
+
+**Built with ❤️ for safer clinical AI**

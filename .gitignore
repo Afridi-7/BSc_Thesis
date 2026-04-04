@@ -1,0 +1,139 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Model files (large)
+*.pt
+*.pth
+*.ckpt
+*.weights
+models/
+!models/.gitkeep
+
+# Data files
+*.csv
+*.h5
+*.hdf5
+data/
+datasets/
+
+# Results and outputs
+results/
+figures/
+logs/
+*.log
+
+# ChromaDB
+chroma_db/
+*.db
+*.sqlite
+
+# PDF files (can be large)
+*.pdf
+pdfs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# API keys (never commit!)
+secrets.yaml
+*.secret
+api_keys.txt
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Test coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Documentation builds
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Profiling
+*.prof
+*.lprof
+*.pstat
+
+# Backup files
+*.bak
+*.backup

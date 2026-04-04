@@ -1,0 +1,176 @@
+# Blood Smear Domain Expert - Configuration
+# All configurable parameters for the blood smear analysis pipeline
+
+# ============================================================================
+# MODEL PATHS
+# ============================================================================
+models:
+  yolo_detection: "models/yolov8s_blood.pt"
+  efficientnet_classification: "models/efficientnet_wbc_finetuned.pt"
+  # Optional override directory via env: THESIS_MODELS_DIR
+
+# ============================================================================
+# DETECTION PARAMETERS (YOLOv8 Stage 1)
+# ============================================================================
+detection:
+  confidence_threshold: 0.25  # Minimum confidence for detections (0.0-1.0)
+  device: "auto"  # 'auto', 'cpu', 'cuda', or device ID (0, 1, etc.)
+  max_images_per_batch: null  # null for unlimited
+  fail_fast: false  # Stop on first error (true) or skip failures (false)
+  
+  # Class definitions
+  canonical_classes:
+    - "WBC"
+    - "RBC"
+    - "Platelet"
+  
+  # Visualization settings
+  visualization:
+    grid_columns: 3
+    max_images_to_plot: 6
+    show_aggregate_stats: true
+    colors:
+      WBC: "#FF6B6B"
+      RBC: "#4ECDC4"
+      Platelet: "#95E1D3"
+
+# ============================================================================
+# CLASSIFICATION PARAMETERS (EfficientNet Stage 2)
+# ============================================================================
+classification:
+  # Monte Carlo Dropout settings
+  mc_dropout_passes: 20  # Number of stochastic forward passes for uncertainty
+  
+  # Uncertainty thresholds
+  uncertainty:
+    low:
+      min_confidence: 0.85
+      max_entropy: 0.3
+    medium:
+      min_confidence: 0.65
+      max_entropy: 0.6
+    # HIGH uncertainty: anything below medium thresholds
+  
+  # WBC subtype classes (8 classes)
+  wbc_classes:
+    - "basophil"
+    - "eosinophil"
+    - "erythroblast"
+    - "ig"
+    - "lymphocyte"
+    - "monocyte"
+    - "neutrophil"
+    - "platelet"
+  
+  # Image preprocessing
+  image_size: 224  # Input size for EfficientNet-B0
+  normalization:
+    mean: [0.485, 0.456, 0.406]  # ImageNet stats
+    std: [0.229, 0.224, 0.225]
+
+# ============================================================================
+# RAG PARAMETERS (Retrieval-Augmented Generation Stage 3)
+# ============================================================================
+rag:
+  # PDF knowledge base
+  pdf_directory: "LLM_RAG_Pipline/pdfs"
+  pdf_sources:
+    - "essentials_haematology.pdf"
+    - "concise_haematology.pdf"
+    - "lab_guide_hematology.pdf"
+  # Missing PDF behavior: 'fail' (strict), 'warn' (continue partial), 'download' (fetch from base URL)
+  pdf_missing_strategy: "fail"
+  pdf_download_base_url: ""
+  pdf_download_timeout_seconds: 30
+  
+  # Text chunking
+  chunking:
+    chunk_size: 500  # Words per chunk
+    overlap: 50  # Word overlap between chunks
+  
+  # Embedding model
+  embedding:
+    model_name: "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_dim: 384
+    batch_size: 64  # For batch encoding
+  
+  # Vector store
+  vector_store:
+    type: "chromadb"  # 'chromadb' or 'numpy_fallback'
+    chromadb_path: "LLM_RAG_Pipline/chroma_db"
+    collection_name: "hematology_knowledge"
+    distance_metric: "cosine"
+  
+  # Retrieval settings
+  retrieval:
+    top_k: 5  # Number of chunks to retrieve
+    min_chunk_length: 80  # Minimum chars for valid retrieval
+    insufficient_evidence_threshold: 80  # Trigger INSUFFICIENT_EVIDENCE flag
+
+# ============================================================================
+# LLM REASONING PARAMETERS (OpenAI GPT-4o)
+# ============================================================================
+llm:
+  # OpenAI API settings
+  model_name: "gpt-4o"
+  api_key_env_var: "OPENAI_API_KEY"  # Environment variable name
+  temperature: 0.1  # Low temperature for consistent medical reasoning
+  max_tokens: 1500
+  
+  # Safety and abstention settings
+  safety:
+    enable_abstention: true  # Allow model to abstain when uncertain
+    propagate_vision_uncertainty: true  # Include vision uncertainty in prompts
+    require_citations: true  # Enforce citation-attached claims
+  
+  # Output format
+  output:
+    format: "json"  # Structured JSON output
+    include_metadata: true  # Add timestamps, versions, etc.
+
+# ============================================================================
+# PIPELINE ORCHESTRATION
+# ============================================================================
+pipeline:
+  # Execution modes
+  enable_stage1: true  # Detection
+  enable_stage2: true  # Classification
+  enable_stage3: true  # RAG reasoning
+  
+  # Error handling
+  continue_on_error: true  # Continue pipeline even if one stage fails
+  save_intermediate_results: true  # Save outputs from each stage
+  
+  # Output directories
+  output:
+    results_dir: "results"
+    figures_dir: "figures"
+    logs_dir: "logs"
+    metadata_dir: "results/metadata"
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console: true  # Log to console
+    file: true  # Log to file
+    file_path: "logs/pipeline_{timestamp}.log"
+  
+  # Module-specific log levels (optional overrides)
+  module_levels:
+    src.detection: "INFO"
+    src.classification: "INFO"
+    src.rag: "INFO"
+    src.pipeline: "INFO"
+
+# ============================================================================
+# SYSTEM SETTINGS
+# ============================================================================
+system:
+  random_seed: 42  # For reproducibility
+  num_workers: 4  # For data loading
+  batch_size: 32  # For batch operations
+  device_fallback: "cpu"  # Fallback if GPU unavailable
