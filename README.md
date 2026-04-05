@@ -113,6 +113,7 @@ The active config expects:
   - essentials_haematology.pdf
   - consie_haematology.pdf
 - Vector DB directory (generated at runtime): db_/chroma_db
+- Internet augmentation: enabled by default to supplement local PDFs with best-effort web evidence
 
 ## Repository Structure
 
@@ -186,6 +187,11 @@ Logs are written to logs/ with timestamped filenames.
 - Ensure db_/pdfs exists
 - Ensure all files listed in rag.pdf_sources are present
 - If you want to run without Stage 3, set pipeline.enable_stage3: false
+
+### Web retrieval warning
+
+- The retriever now supplements PDFs with best-effort web evidence when internet augmentation is enabled.
+- If your network is unavailable, the pipeline continues with local evidence and logs a warning.
 
 ### Batch wildcard issues in PowerShell
 

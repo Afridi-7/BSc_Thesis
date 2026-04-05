@@ -108,6 +108,16 @@ rag:
     min_chunk_length: 80  # Minimum chars for valid retrieval
     insufficient_evidence_threshold: 80  # Trigger INSUFFICIENT_EVIDENCE flag
 
+  # Internet-backed augmentation
+  # When enabled, Stage 3 supplements local PDF evidence with best-effort web retrieval.
+  internet:
+    enabled: true
+    top_k: 3
+    search_timeout_seconds: 10
+    fetch_timeout_seconds: 10
+    max_chars_per_source: 4000
+    user_agent: "BloodSmearDomainExpert/1.0"
+
 # ============================================================================
 # LLM REASONING PARAMETERS (OpenAI GPT-4o)
 # ============================================================================

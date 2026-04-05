@@ -1,12 +1,16 @@
 """
 Clinical knowledge retriever using ChromaDB or numpy fallback.
 
-Provides semantic search over hematology knowledge base with embeddings.
+Provides semantic search over hematology knowledge base with embeddings and
+best-effort internet-backed evidence augmentation.
 """
 
+import html as html_lib
 import logging
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from urllib.parse import parse_qs, unquote, urlparse
 import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
@@ -35,6 +39,15 @@ class ClinicalRetriever:
         self.pdf_missing_strategy = config.get('rag.pdf_missing_strategy', 'fail')
         self.pdf_download_base_url = config.get('rag.pdf_download_base_url', '')
         self.pdf_download_timeout_seconds = config.get('rag.pdf_download_timeout_seconds', 30)
+        self.internet_enabled = config.get('rag.internet.enabled', True)
+        self.internet_top_k = config.get('rag.internet.top_k', 3)
+        self.internet_search_timeout_seconds = config.get('rag.internet.search_timeout_seconds', 10)
+        self.internet_fetch_timeout_seconds = config.get('rag.internet.fetch_timeout_seconds', 10)
+        self.internet_max_chars = config.get('rag.internet.max_chars_per_source', 4000)
+        self.internet_user_agent = config.get(
+            'rag.internet.user_agent',
+            'BloodSmearDomainExpert/1.0 (+https://github.com/)'
+        )
         self.chunk_size = config.get('rag.chunking.chunk_size', 500)
         self.overlap = config.get('rag.chunking.overlap', 50)
         self.top_k = config.get('rag.retrieval.top_k', 5)
@@ -59,6 +72,7 @@ class ClinicalRetriever:
         self.embeddings = None
         self.chroma_client = None
         self.chroma_collection = None
+        self._web_cache: Dict[str, List[Dict[str, Any]]] = {}
         
         logger.info("ClinicalRetriever initialized")
     
@@ -97,6 +111,16 @@ class ClinicalRetriever:
         )
         
         if not self.chunks:
+            if self.internet_enabled:
+                logger.warning("No local PDF chunks extracted; proceeding with internet-backed retrieval only")
+                self.embeddings = None
+                return {
+                    'total_chunks': 0,
+                    'pdfs_processed': 0,
+                    'index_type': 'internet_only',
+                    'embedding_dim': self.embedding_dim
+                }
+
             raise ValueError("No chunks extracted from PDF library")
         
         logger.info(f"Extracted {len(self.chunks)} chunks from PDFs")
@@ -129,7 +153,7 @@ class ClinicalRetriever:
         return {
             'total_chunks': len(self.chunks),
             'pdfs_processed': len(set(c['source'] for c in self.chunks)),
-            'index_type': index_type,
+            'index_type': 'hybrid' if self.internet_enabled else index_type,
             'embedding_dim': self.embedding_dim
         }
 
@@ -153,6 +177,13 @@ class ClinicalRetriever:
         if strategy == 'warn':
             logger.warning(
                 "Continuing with partial PDF library. Missing files: %s",
+                missing
+            )
+            return
+
+        if self.internet_enabled:
+            logger.warning(
+                "Continuing without the missing PDFs because internet-backed retrieval is enabled. Missing files: %s",
                 missing
             )
             return
@@ -267,12 +298,195 @@ class ClinicalRetriever:
         
         # Encode query
         query_embedding = self.embedder.encode([query], convert_to_numpy=True)[0]
-        
-        # Retrieve using available backend
-        if self.chroma_collection is not None:
-            return self._retrieve_chromadb(query_embedding, k)
-        else:
-            return self._retrieve_numpy(query_embedding, k)
+
+        local_results: List[Dict[str, Any]] = []
+        if self.chunks:
+            if self.chroma_collection is not None:
+                local_results = self._retrieve_chromadb(query_embedding, k)
+            elif self.embeddings is not None:
+                local_results = self._retrieve_numpy(query_embedding, k)
+
+        web_results: List[Dict[str, Any]] = []
+        if self.internet_enabled:
+            web_results = self._retrieve_internet(query, query_embedding, k)
+
+        return self._merge_retrieval_results(local_results, web_results, k)
+
+    def _retrieve_internet(
+        self,
+        query: str,
+        query_embedding: np.ndarray,
+        k: int
+    ) -> List[Dict[str, Any]]:
+        """Retrieve best-effort internet evidence for the query."""
+        cache_key = query.strip().lower()
+        if cache_key in self._web_cache:
+            return self._web_cache[cache_key][:k]
+
+        try:
+            search_results = self._search_web(query, max_results=max(k, self.internet_top_k))
+        except Exception as exc:
+            logger.warning(f"Web search failed: {exc}")
+            return []
+
+        candidates: List[Dict[str, Any]] = []
+        for rank, result in enumerate(search_results, 1):
+            try:
+                page_text = self._fetch_web_page_text(result['url'])
+            except Exception as exc:
+                logger.debug(f"Failed to fetch {result['url']}: {exc}")
+                page_text = ""
+
+            text_parts = [result['title']]
+            if page_text:
+                text_parts.append(page_text)
+            elif result.get('snippet'):
+                text_parts.append(result['snippet'])
+
+            candidate_text = "\n".join(part for part in text_parts if part).strip()
+            if len(candidate_text) < self.min_chunk_length:
+                continue
+
+            candidate_embedding = self.embedder.encode([candidate_text[: self.internet_max_chars]], convert_to_numpy=True)[0]
+            similarity = self._cosine_similarity(query_embedding, candidate_embedding)
+            source_label = f"web:{urlparse(result['url']).netloc or result['url']}"
+
+            candidates.append({
+                'text': candidate_text,
+                'source': source_label,
+                'url': result['url'],
+                'title': result['title'],
+                'score': float(similarity),
+                'chunk_id': rank,
+                'total_chunks': len(search_results),
+                'source_type': 'web',
+            })
+
+        candidates.sort(key=lambda item: item.get('score', 0.0), reverse=True)
+        self._web_cache[cache_key] = candidates
+        logger.info(f"Retrieved {len(candidates)} chunks from the web")
+        return candidates[:k]
+
+    def _search_web(self, query: str, max_results: int) -> List[Dict[str, str]]:
+        """Search the public web for query-relevant pages."""
+        search_url = "https://html.duckduckgo.com/html/"
+        response = requests.get(
+            search_url,
+            params={'q': query},
+            headers={'User-Agent': self.internet_user_agent},
+            timeout=self.internet_search_timeout_seconds,
+        )
+        response.raise_for_status()
+
+        html_text = response.text
+        results: List[Dict[str, str]] = []
+        pattern = re.compile(
+            r'<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+            re.IGNORECASE | re.DOTALL,
+        )
+
+        for match in pattern.finditer(html_text):
+            raw_url = html_lib.unescape(match.group(1))
+            title = self._clean_html_text(html_lib.unescape(match.group(2)))
+            url = self._normalize_search_result_url(raw_url)
+
+            if not url:
+                continue
+
+            results.append({
+                'title': title or url,
+                'url': url,
+                'snippet': '',
+            })
+
+            if len(results) >= max_results:
+                break
+
+        return results
+
+    def _normalize_search_result_url(self, raw_url: str) -> str:
+        """Normalize search-engine redirect URLs to direct links."""
+        decoded_url = html_lib.unescape(raw_url)
+        parsed = urlparse(decoded_url)
+        query = parse_qs(parsed.query)
+
+        if 'uddg' in query and query['uddg']:
+            return unquote(query['uddg'][0])
+
+        if parsed.scheme in {'http', 'https'}:
+            return decoded_url
+
+        if decoded_url.startswith('//'):
+            return f"https:{decoded_url}"
+
+        if decoded_url.startswith('/'):
+            return f"https://duckduckgo.com{decoded_url}"
+
+        return decoded_url if decoded_url.startswith('http') else ''
+
+    def _fetch_web_page_text(self, url: str) -> str:
+        """Fetch and clean a web page into plain text."""
+        response = requests.get(
+            url,
+            headers={'User-Agent': self.internet_user_agent},
+            timeout=self.internet_fetch_timeout_seconds,
+        )
+        response.raise_for_status()
+
+        content_type = response.headers.get('content-type', '').lower()
+        if 'text/html' not in content_type and 'application/xhtml+xml' not in content_type:
+            return self._clean_text(response.text)
+
+        return self._extract_text_from_html(response.text)
+
+    def _extract_text_from_html(self, html_text: str) -> str:
+        """Convert HTML content into readable plain text."""
+        html_text = re.sub(r'(?is)<(script|style|noscript).*?>.*?</\1>', ' ', html_text)
+        html_text = re.sub(r'(?is)<head.*?>.*?</head>', ' ', html_text)
+        html_text = re.sub(r'(?is)<br\s*/?>', '\n', html_text)
+        html_text = re.sub(r'(?is)</p\s*>', '\n', html_text)
+        html_text = re.sub(r'(?is)<[^>]+>', ' ', html_text)
+        html_text = html_lib.unescape(html_text)
+        return self._clean_text(html_text)
+
+    def _clean_html_text(self, text: str) -> str:
+        """Clean HTML fragments returned by search results."""
+        return self._clean_text(html_lib.unescape(re.sub(r'(?is)<[^>]+>', ' ', text)))
+
+    def _clean_text(self, text: str) -> str:
+        """Normalize whitespace in extracted text."""
+        return re.sub(r'\s+', ' ', text).strip()
+
+    def _cosine_similarity(self, left: np.ndarray, right: np.ndarray) -> float:
+        """Compute cosine similarity with numerical stability."""
+        epsilon = 1e-8
+        denominator = (np.linalg.norm(left) * np.linalg.norm(right)) + epsilon
+        return float(np.dot(left, right) / denominator)
+
+    def _merge_retrieval_results(
+        self,
+        local_results: List[Dict[str, Any]],
+        web_results: List[Dict[str, Any]],
+        k: int
+    ) -> List[Dict[str, Any]]:
+        """Merge and deduplicate local and web retrieval results."""
+        merged: List[Dict[str, Any]] = []
+        seen = set()
+
+        for item in local_results + web_results:
+            key = (
+                item.get('source', ''),
+                item.get('chunk_id', ''),
+                item.get('text', '')[:200],
+            )
+            if key in seen:
+                continue
+
+            seen.add(key)
+            merged.append(item)
+
+        merged.sort(key=lambda item: item.get('score', 0.0), reverse=True)
+        return merged[:k]
     
     def _retrieve_chromadb(self, query_embedding: np.ndarray, k: int) -> List[Dict[str, Any]]:
         """Retrieve using ChromaDB."""
