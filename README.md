@@ -39,31 +39,41 @@ Build a clinically safer AI assistant for peripheral blood smear interpretation 
 - CUDA-compatible GPU (optional, but recommended)
 - OpenAI API key for GPT-4o
 
-### Installation
+### Windows PowerShell Setup (Recommended)
 
-```bash
-# Clone repository
-cd BSc_Thesis
+```powershell
+# 1) Open terminal in repository root
+cd C:\Users\qkafr\Desktop\BSc_Thesis
 
-# Install dependencies
+# 2) Create and activate virtual environment
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# 3) Install dependencies
 pip install -r requirements.txt
 
-# Create local environment file (recommended)
-copy .env.example .env  # Windows
-# cp .env.example .env  # Linux/Mac
+# 4) Create local environment file and set API key
+Copy-Item .env.example .env
+# Edit .env and replace OPENAI_API_KEY=your-openai-api-key-here
 
-# Edit .env and set:
-# OPENAI_API_KEY=your-api-key-here
+# 5) Place required model files in models/
+# - models/yolov8s_blood.pt
+# - models/efficientnet_wbc_finetuned.pt
 
-# Set OpenAI API key
-$env:OPENAI_API_KEY='your-api-key-here'    # Windows PowerShell
-set OPENAI_API_KEY=your-api-key-here       # Windows CMD
-export OPENAI_API_KEY='your-api-key-here'  # Linux/Mac
-
-# Verify installation
-python main.py version
+# 6) Run environment checks
+python main.py test-config
 python main.py smoke-test
+
+# 7) Analyze one image
+python main.py analyze path\to\blood_smear.jpg
 ```
+
+Stage 3 requires local knowledge-base PDFs in `LLM_RAG_Pipline/pdfs/`:
+- `essentials_haematology.pdf`
+- `concise_haematology.pdf`
+- `lab_guide_hematology.pdf`
+
+If Stage 3 assets are not ready yet, you can still run Stage 1 and Stage 2 by setting `pipeline.enable_stage3: false` in `config.yaml`.
 
 ### Quick Test
 
@@ -452,7 +462,8 @@ python custom_configuration.py
 - `Model file not found`:
   - Ensure checkpoints exist in `models/` or set `THESIS_MODELS_DIR`.
 - `Missing required PDF files`:
-  - Add PDFs under `LLM_RAG_Pipline/pdfs/` or use `rag.pdf_missing_strategy`.
+  - Ensure `LLM_RAG_Pipline/pdfs/` exists and includes all files listed in `rag.pdf_sources`.
+  - To run without Stage 3, set `pipeline.enable_stage3: false` in `config.yaml`.
 - PowerShell wildcard paths:
   - Pass explicit paths if glob expansion fails, e.g. `python main.py analyze .\images\a.jpg .\images\b.jpg --batch`.
 

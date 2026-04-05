@@ -73,6 +73,8 @@ classification:
 # ============================================================================
 rag:
   # PDF knowledge base
+  # Default local knowledge-base folder for Stage 3 assets.
+  # Add the files listed in rag.pdf_sources under this directory.
   pdf_directory: "LLM_RAG_Pipline/pdfs"
   pdf_sources:
     - "essentials_haematology.pdf"

@@ -285,29 +285,69 @@ def display_results(results: dict) -> None:
 
 def run_smoke_test(config_path: str = None) -> int:
     """Run a quick local health-check for configuration and dependencies."""
+    print("Running smoke test...")
+
     try:
-        print("Running smoke test...")
         config = load_config(config_path)
         validate_config(config)
         print("✓ Config load and validation passed")
+    except Exception as exc:
+        print(f"❌ Config check failed: {exc}", file=sys.stderr)
+        return 1
 
-        yolo_path = get_model_path(config, 'yolo_detection')
-        eff_path = get_model_path(config, 'efficientnet_classification')
-        print(f"✓ YOLO model found: {yolo_path}")
-        print(f"✓ EfficientNet model found: {eff_path}")
+    failures = []
 
-        api_key_var = config.get('llm.api_key_env_var', 'OPENAI_API_KEY')
+    # Model file checks (required for Stage 1 and Stage 2)
+    for model_key, label in [
+        ('yolo_detection', 'YOLO detection model'),
+        ('efficientnet_classification', 'EfficientNet classification model')
+    ]:
+        try:
+            model_path = get_model_path(config, model_key)
+            print(f"✓ {label} found: {model_path}")
+        except Exception as exc:
+            failures.append(f"{label} missing")
+            print(f"✗ {label} check failed: {exc}")
+            print("  Action: place required .pt files in models/ or set THESIS_MODELS_DIR")
+
+    stage3_enabled = config.get('pipeline.enable_stage3', True)
+    api_key_var = config.get('llm.api_key_env_var', 'OPENAI_API_KEY')
+
+    if stage3_enabled:
         if os.getenv(api_key_var):
             print(f"✓ API key variable set: {api_key_var}")
         else:
             print(f"⚠ API key variable not set: {api_key_var}")
-            print("  Add .env with OPENAI_API_KEY=... or set environment variable before Stage 3")
+            print("  Action: create .env from .env.example and set OPENAI_API_KEY before Stage 3")
 
-        print("✓ Smoke test complete")
-        return 0
-    except Exception as exc:
-        print(f"❌ Smoke test failed: {exc}", file=sys.stderr)
+        pdf_dir = Path(config.get('rag.pdf_directory', 'LLM_RAG_Pipline/pdfs'))
+        pdf_sources = config.get('rag.pdf_sources', [])
+
+        if pdf_dir.exists() and pdf_dir.is_dir():
+            print(f"✓ RAG PDF directory found: {pdf_dir}")
+        else:
+            failures.append("RAG PDF directory missing")
+            print(f"✗ RAG PDF directory not found: {pdf_dir}")
+            print("  Action: create the directory and add PDFs listed in config.yaml rag.pdf_sources")
+            print("  Alternative: set pipeline.enable_stage3=false to run Stage 1/2 only")
+
+        missing_pdfs = [name for name in pdf_sources if not (pdf_dir / name).exists()]
+        if missing_pdfs:
+            failures.append("RAG PDF files missing")
+            print(f"✗ Missing RAG PDF files: {missing_pdfs}")
+            print("  Action: add these files under the configured rag.pdf_directory")
+            print("  Alternative: set rag.pdf_missing_strategy='warn' for partial retrieval")
+        else:
+            print(f"✓ All configured RAG PDFs found ({len(pdf_sources)})")
+    else:
+        print("✓ Stage 3 is disabled (pipeline.enable_stage3=false); skipping API key and PDF checks")
+
+    if failures:
+        print(f"❌ Smoke test completed with {len(failures)} critical issue(s)", file=sys.stderr)
         return 1
+
+    print("✓ Smoke test complete")
+    return 0
 
 
 if __name__ == '__main__':
