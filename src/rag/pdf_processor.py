@@ -172,9 +172,9 @@ def process_pdf_library(
         chunks = chunk_text(text, chunk_size=chunk_size, overlap=overlap)
         
         # Add metadata
-        for chunk_idx, chunk_text in enumerate(chunks):
+        for chunk_idx, chunk_body in enumerate(chunks):
             all_chunks.append({
-                'text': chunk_text,
+                'text': chunk_body,
                 'source': pdf_filename,
                 'chunk_id': chunk_idx,
                 'total_chunks': len(chunks)

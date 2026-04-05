@@ -301,7 +301,6 @@ Please provide your clinical interpretation following the safety requirements an
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON response: {e}")
-            logger.debug(f"Response content: {response}")
             
             return {
                 'clinical_interpretation': response[:500],

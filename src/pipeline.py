@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Union, List, Dict, Any, Optional
 from datetime import datetime
 import json
+import numpy as np
 
 from src.config.config_loader import Config, load_config
 from src.detection.detector import CellDetector
@@ -349,9 +350,38 @@ class BloodSmearPipeline:
     def _save_json(self, data: Dict[str, Any], filename: str) -> None:
         """Save data as JSON file."""
         filepath = self.results_dir / filename
+        serializable = self._to_json_safe(data)
         with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(serializable, f, indent=2, ensure_ascii=False)
         logger.debug(f"Saved: {filepath}")
+
+    def _to_json_safe(self, value: Any, parent_key: Optional[str] = None) -> Any:
+        """Recursively convert values into JSON-safe structures."""
+        if isinstance(value, dict):
+            return {k: self._to_json_safe(v, parent_key=k) for k, v in value.items()}
+
+        if isinstance(value, list):
+            return [self._to_json_safe(item, parent_key=parent_key) for item in value]
+
+        if isinstance(value, tuple):
+            return [self._to_json_safe(item, parent_key=parent_key) for item in value]
+
+        # Avoid dumping huge raw image arrays into JSON artifacts.
+        if isinstance(value, np.ndarray):
+            return {
+                'omitted': True,
+                'dtype': str(value.dtype),
+                'shape': list(value.shape),
+                'reason': 'non-serializable ndarray omitted from JSON output'
+            }
+
+        if isinstance(value, (np.integer, np.floating, np.bool_)):
+            return value.item()
+
+        if isinstance(value, Path):
+            return str(value)
+
+        return value
 
 
 def create_pipeline(config_path: Optional[str] = None) -> BloodSmearPipeline:

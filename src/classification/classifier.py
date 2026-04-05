@@ -87,20 +87,35 @@ class WBCClassifier:
         """
         # Create base model
         model = timm.create_model('efficientnet_b0', pretrained=False, num_classes=self.num_classes)
-        
+
         # Load checkpoint
         checkpoint = torch.load(model_path, map_location=self.device)
-        
+
         # Handle different checkpoint formats
         if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
+            state_dict = checkpoint['model_state_dict']
         elif 'model_state' in checkpoint:
-            model.load_state_dict(checkpoint['model_state'])
+            state_dict = checkpoint['model_state']
         elif 'state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['state_dict'])
+            state_dict = checkpoint['state_dict']
         else:
             # Assume checkpoint is the state dict itself
-            model.load_state_dict(checkpoint)
+            state_dict = checkpoint
+
+        # Some training runs use a multi-layer classifier head (classifier.0/3/6).
+        if 'classifier.0.weight' in state_dict:
+            in_features = model.classifier.in_features
+            model.classifier = nn.Sequential(
+                nn.Linear(in_features, 1024),
+                nn.ReLU(inplace=True),
+                nn.Dropout(p=0.3),
+                nn.Linear(1024, 512),
+                nn.ReLU(inplace=True),
+                nn.Dropout(p=0.2),
+                nn.Linear(512, self.num_classes),
+            )
+
+        model.load_state_dict(state_dict)
         
         model = model.to(self.device)
         model.eval()

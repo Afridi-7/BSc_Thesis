@@ -13,7 +13,7 @@ models:
 # DETECTION PARAMETERS (YOLOv8 Stage 1)
 # ============================================================================
 detection:
-  confidence_threshold: 0.25  # Minimum confidence for detections (0.0-1.0)
+  confidence_threshold: 0.50  # Minimum confidence for detections (0.0-1.0)
   device: "auto"  # 'auto', 'cpu', 'cuda', or device ID (0, 1, etc.)
   max_images_per_batch: null  # null for unlimited
   fail_fast: false  # Stop on first error (true) or skip failures (false)
@@ -75,11 +75,10 @@ rag:
   # PDF knowledge base
   # Default local knowledge-base folder for Stage 3 assets.
   # Add the files listed in rag.pdf_sources under this directory.
-  pdf_directory: "LLM_RAG_Pipline/pdfs"
+  pdf_directory: "db_/pdfs"
   pdf_sources:
     - "essentials_haematology.pdf"
-    - "concise_haematology.pdf"
-    - "lab_guide_hematology.pdf"
+    - "consie_haematology.pdf"
   # Missing PDF behavior: 'fail' (strict), 'warn' (continue partial), 'download' (fetch from base URL)
   pdf_missing_strategy: "fail"
   pdf_download_base_url: ""
@@ -99,7 +98,7 @@ rag:
   # Vector store
   vector_store:
     type: "chromadb"  # 'chromadb' or 'numpy_fallback'
-    chromadb_path: "LLM_RAG_Pipline/chroma_db"
+    chromadb_path: "db_/chroma_db"
     collection_name: "hematology_knowledge"
     distance_metric: "cosine"
   
