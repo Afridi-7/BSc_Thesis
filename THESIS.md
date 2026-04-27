@@ -6,11 +6,11 @@
 
 **Bachelor of Science Thesis**
 
-Author: *⟨Author Name⟩*
-Supervisor: *⟨Supervisor Name⟩*
-Department: *⟨Department⟩*
-Institution: *⟨University⟩*
-Submitted: April 2026
+Author: *Qudrat Ullah*
+Supervisor: *Dr. Hajdu András*
+Department: *Informatics*
+Institution: *University of Debrecen*
+Submitted: ? 2026
 
 ---
 
@@ -58,6 +58,80 @@ I would like to thank my supervisor for the academic guidance and the patience e
 16. [Appendix B — Output JSON Schema](#appendix-b--output-json-schema)
 17. [Appendix C — Reproducibility Checklist](#appendix-c--reproducibility-checklist)
 18. [Appendix D — Repository Layout](#appendix-d--repository-layout)
+19. [List of Figures](#list-of-figures)
+20. [List of Tables](#list-of-tables)
+21. [Glossary of Abbreviations](#glossary-of-abbreviations)
+
+---
+
+## List of Figures
+
+- **Figure 4.1** — Normalised confusion matrix for Stage 1 on the TXL-PBC test split.
+- **Figure 4.2** — Stage 1 training curves (box / class / DFL loss + validation mAP).
+- **Figure 4.3** — Qualitative detection result on a held-out test image.
+- **Figure 4.4** — Stage 1 validation ground truth.
+- **Figure 4.5** — Stage 1 validation predictions.
+- **Figure 5.1** — Normalised confusion matrix for Stage 2 on the PBC test split.
+- **Figure 5.2** — Stage 2 training curves across Phase 1 (frozen) and Phase 2 (fine-tune).
+- **Figure 5.3** — Qualitative Stage 2 predictions on test images.
+- **Figure 6.1** — End-to-end pipeline output as rendered in the frontend.
+
+## List of Tables
+
+- **Table 4.1** — TXL-PBC dataset split (Stage 1).
+- **Table 4.2** — Stage 1 training hyperparameters.
+- **Table 4.3** — Stage 1 evaluation metrics on the test split.
+- **Table 5.1** — Per-class recall on the PBC test split (Stage 2).
+- **Table 5.2** — Stage 2 Phase 1 hyperparameters (frozen backbone).
+- **Table 5.3** — Stage 2 Phase 2 hyperparameters (full fine-tune).
+- **Table 6.1** — RAG corpus chunk counts.
+- **Table 6.2** — Stage 3 agent tool registry.
+- **Table 9.1** — End-to-end latency budget (CPU laptop).
+- **Table 9.2** — Resource footprint of trained artefacts.
+- **Table A.1** — Full configuration key reference.
+
+## Glossary of Abbreviations
+
+| Abbreviation | Expansion |
+|---|---|
+| AMP | Automatic Mixed Precision |
+| AUROC | Area Under the Receiver Operating Characteristic curve |
+| BCCD | Blood Cell Count and Detection (dataset) |
+| BN | Batch Normalisation |
+| CBC | Complete Blood Count |
+| CI | Confidence Interval |
+| CNN | Convolutional Neural Network |
+| COCO | Common Objects in Context (benchmark) |
+| CORS | Cross-Origin Resource Sharing |
+| DFL | Distribution Focal Loss |
+| ECE | Expected Calibration Error |
+| FDA | (US) Food and Drug Administration |
+| FLOPs | Floating-Point Operations |
+| GPT | Generative Pre-trained Transformer |
+| Grad-CAM | Gradient-weighted Class Activation Mapping |
+| IG | Immature Granulocyte |
+| IoU | Intersection over Union |
+| IR | Information Retrieval |
+| JSON | JavaScript Object Notation |
+| LLM | Large Language Model |
+| LR | Learning Rate |
+| mAP | Mean Average Precision |
+| MBConv | Mobile Inverted Bottleneck Convolution |
+| MC-Dropout | Monte Carlo Dropout |
+| PAN | Path Aggregation Network |
+| PBC | Peripheral Blood Cell (Acevedo *et al.* dataset) |
+| PBS | Peripheral Blood Smear |
+| PHI | Protected Health Information |
+| RAG | Retrieval-Augmented Generation |
+| RBC | Red Blood Cell |
+| ReAct | Reasoning + Acting (LLM agent paradigm) |
+| REST | Representational State Transfer |
+| SHA | Secure Hash Algorithm |
+| SPA | Single-Page Application |
+| TXL-PBC | Combined / balanced public blood-smear detection dataset |
+| WBC | White Blood Cell |
+| WHO | World Health Organization |
+| YOLO | You Only Look Once (object detector family) |
 
 ---
 
@@ -457,7 +531,7 @@ Training and fine-tuning curves (Figure 5.2) show the expected two-phase behavio
 
 A qualitative grid of correct test-set predictions with confidence scores is shown in Figure 5.3. Correct classifications dominate; the small number of misclassifications cluster, as predicted, in the `ig` row.
 
-![Figure 5.3 — Qualitative Stage 2 predictions on test images.](Notebooks/Efficientnet_classification/results/predictions%20%281%29.png)
+![Figure 5.3 — Qualitative Stage 2 predictions on test images.](Notebooks/Efficientnet_classification/results/predictions_grid.png)
 
 ### 5.8 Calibration
 
