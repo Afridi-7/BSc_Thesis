@@ -49,8 +49,8 @@ Copy-Item .env.example .env
 # models/efficientnet_wbc_finetuned.pt
 
 # 6) Verify required Stage 3 PDFs exist
-# db_/pdfs/essentials_haematology.pdf
-# db_/pdfs/consie_haematology.pdf
+# data/pdfs/essentials_haematology.pdf
+# data/pdfs/consie_haematology.pdf
 
 # 7) Validate configuration and setup
 python main.py test-config
@@ -108,37 +108,108 @@ The active config expects:
 
 - Detection model: models/yolov8s_blood.pt
 - Classification model: models/efficientnet_wbc_finetuned.pt
-- Stage 3 PDF directory: db_/pdfs
+- Stage 3 PDF directory: data/pdfs
 - Stage 3 PDF sources:
   - essentials_haematology.pdf
   - consie_haematology.pdf
-- Vector DB directory (generated at runtime): db_/chroma_db
+- Vector DB directory (generated at runtime): data/chroma_db
 - Internet augmentation: enabled by default to supplement local PDFs with best-effort web evidence
 
 ## Repository Structure
 
 ```text
 BSc_Thesis/
-├── main.py
-├── config.yaml
+├── main.py                       # CLI entrypoint (analyze / test-config / smoke-test)
+├── config.yaml                   # Single source of truth for runtime parameters
 ├── requirements.txt
 ├── README.md
-├── src/
-│   ├── pipeline.py
-│   ├── config/
-│   ├── detection/
-│   ├── classification/
-│   ├── rag/
-│   └── utils/
-├── models/
-├── db_/
-│   └── pdfs/
-├── results/
-├── logs/
-├── examples/
-├── tests/
-└── Notebooks/
+│
+├── src/                          # Core inference library (importable as `src.*`)
+│   ├── pipeline.py               # End-to-end orchestrator (Stage 1 → 2 → 3)
+│   ├── config/                   # YAML/env loader
+│   ├── detection/                # YOLOv8 cell detector
+│   ├── classification/           # EfficientNet WBC classifier + MC-Dropout
+│   ├── rag/                      # PDF ingest, retriever, GPT-4o reasoner
+│   └── utils/                    # Logging, validators, metrics, reproducibility
+│
+├── backend/                      # FastAPI HTTP layer over `src.pipeline`
+│   ├── main.py                   # `app` factory + uvicorn entry
+│   ├── config.py                 # CORS, upload limits
+│   ├── dependencies.py           # Pipeline singleton (lazy init)
+│   ├── schemas.py                # Pydantic response models
+│   ├── routes/                   # /api/health, /api/samples, /api/analyze
+│   └── services/                 # Bounding-box overlay renderer
+│
+├── frontend/                     # Vite + React + TypeScript UI
+│   ├── package.json
+│   ├── vite.config.ts            # Proxies /api → http://localhost:8000
+│   └── src/
+│       ├── api.ts                # Typed client
+│       ├── types.ts              # Mirrors backend schemas
+│       ├── components/           # Header, UploadCard, DetectionPanel, ...
+│       └── App.tsx
+│
+├── models/                       # Trained checkpoints (.pt) — gitignored
+├── data/pdfs/                     # Stage-3 hematology knowledge base
+├── examples/                     # Scripted demos + sample_images/
+├── scripts/                      # Dev utilities (diag_yolo)
+├── tests/                        # pytest suite
+├── Notebooks/                    # Training + evaluation notebooks
+├── results/                      # Per-stage JSON artefacts (gitignored)
+├── logs/                         # Pipeline log files (gitignored)
+└── data/                          # Stage-3 vector store + source PDFs
 ```
+
+## Web App (FastAPI + React)
+
+The repo ships a thin web layer for interactive demos. It re-uses the same
+`BloodSmearPipeline` instance the CLI uses (no duplicate model loads), and the
+React frontend talks to it via a typed `/api` client.
+
+### Run the backend (FastAPI)
+
+```powershell
+# Activate the venv first, then:
+cd backend
+uvicorn main:app --reload --port 8000   # http://127.0.0.1:8000
+```
+
+Key endpoints:
+- `GET  /api/health`            — liveness + pipeline-warmth probe
+- `GET  /api/samples`           — list bundled demo images
+- `GET  /api/samples/{name}`    — preview a sample
+- `POST /api/analyze`           — multipart upload (`image`), returns full pipeline output + base64 overlay
+- `GET  /docs`                  — interactive OpenAPI
+
+### Run the frontend (Vite + React + TS)
+
+```powershell
+cd frontend
+npm install                            # first time only
+npm run dev                            # http://localhost:5173
+```
+
+Vite proxies `/api/*` to the FastAPI server, so both run side-by-side in dev.
+For production, run `npm run build` and serve `frontend/dist/` from any static
+host (or behind the same origin as the API to skip CORS).
+
+## Agentic Mode (LangChain ReAct + Grad-CAM)
+
+The pipeline ships with two upgrades on top of the linear baseline:
+
+1. **Grad-CAM saliency** — per-WBC class-activation overlays produced by
+   [src/classification/gradcam.py](src/classification/gradcam.py). Toggle via
+   `classification.gradcam.enabled: true` in `config.yaml`. The frontend
+   renders them in the *Grad-CAM Saliency* card.
+2. **ReAct reasoning agent** — a LangChain agent
+   ([src/rag/agent.py](src/rag/agent.py)) that replaces the single-shot LLM
+   call with iterative tool use. Five tools are available:
+   `query_knowledge_base`, `lookup_lab_reference_ranges`,
+   `interpret_differential`, `get_uncertainty_summary`, and
+   `get_detection_counts`. Switch on with `reasoning.mode: agent` in
+   `config.yaml`; the trace is shown in the *Agent Trace* card.
+
+Both flags are independent — Grad-CAM works in linear mode too.
 
 ## Configuration Notes
 
@@ -184,7 +255,7 @@ Logs are written to logs/ with timestamped filenames.
 
 ### Stage 3 PDF error
 
-- Ensure db_/pdfs exists
+- Ensure data/pdfs exists
 - Ensure all files listed in rag.pdf_sources are present
 - If you want to run without Stage 3, set pipeline.enable_stage3: false
 

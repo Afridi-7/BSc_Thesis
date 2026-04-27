@@ -79,6 +79,7 @@ logs/
 
 # ChromaDB
 chroma_db/
+data/chroma_db/
 *.db
 *.sqlite
 
@@ -137,3 +138,15 @@ docs/_templates/
 # Backup files
 *.bak
 *.backup
+
+# Frontend (Node)
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Ultralytics inference artefacts
+runs/
+
+# Per-upload pipeline scratch space
+/tmp/
+*.pid

@@ -14,7 +14,7 @@ def test_handle_missing_pdfs_allows_internet_mode():
     retriever = _retriever_stub()
     retriever.pdf_missing_strategy = "fail"
     retriever.pdf_download_base_url = ""
-    retriever.pdf_directory = "db_/pdfs"
+    retriever.pdf_directory = "data/pdfs"
 
     retriever._handle_missing_pdfs({"missing_files": ["missing.pdf"]})
 

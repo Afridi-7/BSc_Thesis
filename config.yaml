@@ -68,6 +68,24 @@ classification:
     mean: [0.485, 0.456, 0.406]  # ImageNet stats
     std: [0.229, 0.224, 0.225]
 
+  # Grad-CAM interpretability (per-WBC attention heatmaps)
+  gradcam:
+    enabled: true   # Set false to skip Grad-CAM computation entirely
+    alpha: 0.45     # Heatmap blend strength (0=image only, 1=heatmap only)
+
+# ============================================================================
+# REASONING (Stage 3 mode selection)
+# ============================================================================
+reasoning:
+  # 'linear' — single-shot LLM call grounded by retrieved context (default).
+  # 'agent'  — LangChain ReAct agent that iteratively calls tools
+  #            (knowledge_base, lab_reference_ranges, differential_review,
+  #             uncertainty_summary) before producing the final report.
+  mode: "agent"
+  agent:
+    max_iterations: 6
+    return_intermediate_steps: true
+
 # ============================================================================
 # RAG PARAMETERS (Retrieval-Augmented Generation Stage 3)
 # ============================================================================
@@ -75,7 +93,7 @@ rag:
   # PDF knowledge base
   # Default local knowledge-base folder for Stage 3 assets.
   # Add the files listed in rag.pdf_sources under this directory.
-  pdf_directory: "db_/pdfs"
+  pdf_directory: "data/pdfs"
   pdf_sources:
     - "essentials_haematology.pdf"
     - "consie_haematology.pdf"
@@ -100,7 +118,7 @@ rag:
   # Vector store
   vector_store:
     type: "chromadb"  # 'chromadb' or 'numpy_fallback'
-    chromadb_path: "db_/chroma_db"
+    chromadb_path: "data/chroma_db"
     collection_name: "hematology_knowledge"
     distance_metric: "cosine"
   

@@ -225,47 +225,32 @@ class WBCClassifier:
     def classify_batch(
         self,
         images: List[Union[np.ndarray, Image.Image]],
-        n_passes: Optional[int] = None
+        n_passes: Optional[int] = None,
+        compute_gradcam: bool = False,
     ) -> Dict[str, Any]:
         """
         Classify batch of WBC images with uncertainty quantification.
-        
+
         Args:
             images: List of images as numpy arrays or PIL Images
             n_passes: Number of MC Dropout passes per image
-            
-        Returns:
-            Dictionary with batch results:
-                {
-                    'predictions': [
-                        {prediction dict for image 1},
-                        {prediction dict for image 2},
-                        ...
-                    ],
-                    'summary': {
-                        'sample_count': int,
-                        'class_distribution': dict,
-                        'confidence_stats': dict,
-                        'entropy_stats': dict,
-                        'variance_stats': dict,
-                        'flagged_count': int,
-                        'requires_expert_review': bool
-                    }
-                }
-                
-        Examples:
-            >>> results = classifier.classify_batch(wbc_crops)
-            >>> print(f"Classified {results['summary']['sample_count']} cells")
-            >>> if results['summary']['requires_expert_review']:
-            ...     print(f"⚠️ {results['summary']['flagged_count']} cells need review")
+            compute_gradcam: If True, attach a Grad-CAM heatmap (PNG data URL)
+                to each prediction under the ``gradcam_base64`` key.
         """
         logger.info(f"Classifying batch of {len(images)} images")
-        
+
         predictions = []
         for idx, image in enumerate(images):
             try:
                 result = self.classify_with_uncertainty(image, n_passes)
                 result['index'] = idx
+                if compute_gradcam:
+                    try:
+                        result['gradcam_base64'] = self.compute_gradcam(
+                            image, predicted_class=result['predicted_class']
+                        )
+                    except Exception as cam_exc:  # noqa: BLE001
+                        logger.warning("Grad-CAM failed for crop %d: %s", idx, cam_exc)
                 predictions.append(result)
             except Exception as e:
                 logger.error(f"Failed to classify image {idx}: {e}")
@@ -280,15 +265,48 @@ class WBCClassifier:
                     'flagged': True,
                     'error': str(e)
                 })
-        
+
         # Create summary statistics
         summary = create_summary_statistics(predictions)
-        
+
         return {
             'predictions': predictions,
             'summary': summary
         }
-    
+
+    def compute_gradcam(
+        self,
+        image: Union[np.ndarray, Image.Image],
+        predicted_class: Optional[str] = None,
+    ) -> str:
+        """
+        Compute a Grad-CAM heatmap for a single WBC crop.
+
+        Returns a ``data:image/png;base64,...`` URL ready to embed in JSON / HTML.
+        """
+        from src.classification.gradcam import GradCAM
+
+        if isinstance(image, np.ndarray):
+            pil_image = Image.fromarray(image.astype('uint8'))
+        else:
+            pil_image = image
+
+        # Determine class index. If not given, use the argmax of a single deterministic forward pass.
+        if predicted_class is not None and predicted_class in self.wbc_classes:
+            class_idx = self.wbc_classes.index(predicted_class)
+        else:
+            self.model.eval()
+            with torch.no_grad():
+                input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
+                class_idx = int(torch.softmax(self.model(input_tensor), dim=1).argmax(dim=1).item())
+
+        input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
+        with GradCAM(self.model) as cam:
+            heatmap = cam.compute(input_tensor, class_idx=class_idx)
+
+        return GradCAM.render_overlay(pil_image, heatmap, alpha=0.45)
+
+
     def _enable_dropout(self, model: nn.Module) -> None:
         """
         Enable dropout layers at inference time for MC Dropout.

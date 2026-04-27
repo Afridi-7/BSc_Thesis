@@ -61,6 +61,8 @@ class BloodSmearPipeline:
         self.enable_stage3 = config.get('pipeline.enable_stage3', True)
         self.continue_on_error = config.get('pipeline.continue_on_error', True)
         self.save_intermediate = config.get('pipeline.save_intermediate_results', True)
+        self.enable_gradcam = config.get('classification.gradcam.enabled', False)
+        self.reasoning_mode = config.get('reasoning.mode', 'linear')  # 'linear' or 'agent'
         
         # Initialize detectors
         self.detector = CellDetector(config) if self.enable_stage1 else None
@@ -70,14 +72,22 @@ class BloodSmearPipeline:
         if self.enable_stage3:
             self.retriever = ClinicalRetriever(config)
             self.reasoner = ClinicalReasoner(config)
-            
+
             # Build retrieval index
             logger.info("Building RAG retrieval index...")
             index_stats = self.retriever.build_index()
             logger.info(f"Index built: {index_stats['total_chunks']} chunks, type={index_stats['index_type']}")
+
+            # Optional ReAct agent (lazy import — only if requested).
+            self.agent = None
+            if self.reasoning_mode == 'agent':
+                from src.rag.agent import ClinicalReasoningAgent
+                logger.info("Initializing LangChain ReAct reasoning agent...")
+                self.agent = ClinicalReasoningAgent(config, self.retriever)
         else:
             self.retriever = None
             self.reasoner = None
+            self.agent = None
         
         # Output directories
         self.results_dir = Path(config.get('pipeline.output.results_dir', 'results'))
@@ -150,7 +160,9 @@ class BloodSmearPipeline:
 
                     if all_wbc_crops:
                         wbc_images = [crop['image'] for crop in all_wbc_crops]
-                        classification_results = self.classifier.classify_batch(wbc_images)
+                        classification_results = self.classifier.classify_batch(
+                            wbc_images, compute_gradcam=self.enable_gradcam
+                        )
 
                         # Attach crop provenance so downstream stages can trace predictions to source images.
                         for pred, crop in zip(classification_results['predictions'], all_wbc_crops):
@@ -220,25 +232,30 @@ class BloodSmearPipeline:
                 # Get uncertainty summary if available
                 uncertainty_summary = results.get('stage2_classification', {}).get('uncertainty_summary')
                 
-                # Generate clinical reasoning
-                reasoning_results = self.reasoner.generate_reasoning(
+                # Generate clinical reasoning (linear LLM or ReAct agent)
+                reasoner = self.agent if self.reasoning_mode == 'agent' and self.agent else self.reasoner
+                logger.info("Reasoning mode: %s", 'agent' if reasoner is self.agent else 'linear')
+                reasoning_results = reasoner.generate_reasoning(
                     vision_summary=vision_summary,
                     retrieved_context=context,
                     uncertainty_summary=uncertainty_summary,
                     retrieved_chunks=retrieved_chunks
                 )
                 
-                # Add retrieval quality info
+                # Add retrieval quality info. In agent mode the agent already
+                # produced its own retrieved_references via tool calls; keep
+                # those rather than overwriting with the pre-fetched list.
                 reasoning_results['retrieval_quality'] = retrieval_quality
-                reasoning_results['retrieved_references'] = [
-                    {
-                        'reference_id': idx,
-                        'source': chunk.get('source', 'unknown'),
-                        'chunk_id': chunk.get('chunk_id'),
-                        'score': chunk.get('score')
-                    }
-                    for idx, chunk in enumerate(retrieved_chunks, 1)
-                ]
+                if not reasoning_results.get('retrieved_references'):
+                    reasoning_results['retrieved_references'] = [
+                        {
+                            'reference_id': idx,
+                            'source': chunk.get('source', 'unknown'),
+                            'chunk_id': chunk.get('chunk_id'),
+                            'score': chunk.get('score')
+                        }
+                        for idx, chunk in enumerate(retrieved_chunks, 1)
+                    ]
                 results['stage3_reasoning'] = reasoning_results
                 
                 logger.info(f"✓ Generated clinical reasoning")
