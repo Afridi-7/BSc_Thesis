@@ -18,6 +18,7 @@ from src.rag.retriever import ClinicalRetriever
 from src.rag.llm_reasoner import ClinicalReasoner
 from src.utils.logging_config import setup_logging
 from src.utils.pipeline_helpers import collect_wbc_crops
+from src.utils.reproducibility import set_global_seeds
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,13 @@ class BloodSmearPipeline:
         # Setup logging
         log_level = config.get('logging.level', 'INFO')
         setup_logging(log_level=log_level)
-        
+
+        # Seed RNGs as early as possible for reproducible MC-Dropout / retrieval runs.
+        set_global_seeds(
+            seed=config.get('system.random_seed'),
+            deterministic_torch=config.get('system.deterministic_torch', False),
+        )
+
         logger.info("Initializing Blood Smear Pipeline...")
         
         # Initialize components
@@ -300,51 +307,76 @@ class BloodSmearPipeline:
         return summary
     
     def _build_rag_query(self, vision_summary: Dict[str, Any]) -> str:
-        """Build semantic query from vision summary."""
-        query_parts = []
-        
-        # Cell count abnormalities
-        if 'cell_counts' in vision_summary:
-            counts = vision_summary['cell_counts']
-            
-            # High WBC
-            if counts.get('WBC', 0) > 15:
-                query_parts.append("leukocytosis elevated white blood cell count")
-            # Low WBC
-            elif counts.get('WBC', 0) < 4:
-                query_parts.append("leukopenia low white blood cell count")
-            
-            # Platelet abnormalities
-            if counts.get('Platelet', 0) > 500:
-                query_parts.append("thrombocytosis elevated platelet count")
-            elif counts.get('Platelet', 0) < 50:
-                query_parts.append("thrombocytopenia low platelet count")
-        
-        # WBC differential abnormalities
+        """Build a natural-language semantic query from vision results.
+
+        Important: detection counts here are *per-image cell counts in a
+        microscope field*, NOT clinical concentrations (cells/uL). Therefore
+        we describe what was *observed in the smear* and let the WBC
+        differential (relative percentages) drive the clinical phrasing,
+        instead of guessing leukocytosis / thrombocytopenia from raw counts.
+        """
+        observations: List[str] = []
+
         if 'wbc_differential' in vision_summary:
             diff = vision_summary['wbc_differential']
-            
-            # Elevated subtypes
+            ordered = sorted(diff.items(), key=lambda kv: kv[1], reverse=True)
+            top_terms = [f"{pct:.0f}% {name}" for name, pct in ordered if pct > 0]
+            if top_terms:
+                observations.append(
+                    "WBC differential observed in the smear: " + ", ".join(top_terms[:6])
+                )
+
+            # Relative-abundance morphology cues (still observation-level, not
+            # diagnostic claims about the patient).
+            morphology_cues = []
             if diff.get('neutrophil', 0) > 70:
-                query_parts.append("neutrophilia")
+                morphology_cues.append("neutrophil predominance")
             if diff.get('lymphocyte', 0) > 40:
-                query_parts.append("lymphocytosis")
+                morphology_cues.append("lymphocyte predominance")
             if diff.get('monocyte', 0) > 10:
-                query_parts.append("monocytosis")
+                morphology_cues.append("increased monocytes")
             if diff.get('eosinophil', 0) > 5:
-                query_parts.append("eosinophilia")
-        
-        # Uncertainty flags
+                morphology_cues.append("increased eosinophils")
+            if diff.get('basophil', 0) > 2:
+                morphology_cues.append("increased basophils")
+            if diff.get('ig', 0) > 2:
+                morphology_cues.append("immature granulocytes present")
+            if diff.get('erythroblast', 0) > 1:
+                morphology_cues.append("nucleated red blood cells present")
+            if morphology_cues:
+                observations.append(
+                    "Notable morphology cues: " + ", ".join(morphology_cues)
+                )
+
+        if 'cell_counts' in vision_summary:
+            counts = vision_summary['cell_counts']
+            count_terms = [f"{cls}={n}" for cls, n in counts.items() if n]
+            if count_terms:
+                observations.append(
+                    "Per-image detection counts (microscope field, not clinical concentration): "
+                    + ", ".join(count_terms)
+                )
+
         if 'uncertainty_summary' in vision_summary:
-            flagged = vision_summary['uncertainty_summary'].get('flagged_count', 0)
-            if flagged > 0:
-                query_parts.append("uncertain morphology differential diagnosis")
-        
-        # Default query if no abnormalities
-        if not query_parts:
-            query_parts.append("normal blood smear white blood cell differential")
-        
-        query = " ".join(query_parts)
+            unc = vision_summary['uncertainty_summary']
+            flagged = unc.get('flagged_count', 0)
+            total = unc.get('total_samples', 0)
+            if flagged and total:
+                observations.append(
+                    f"{flagged} of {total} WBC classifications flagged with high model uncertainty"
+                )
+
+        if not observations:
+            observations.append(
+                "Peripheral blood smear with no flagged abnormalities; "
+                "summarize normal WBC differential reference ranges and morphology."
+            )
+
+        query = (
+            "Provide hematology reference information relevant to the following "
+            "peripheral blood smear observations. "
+            + " ".join(observations)
+        )
         return query
 
     def _save_json(self, data: Dict[str, Any], filename: str) -> None:

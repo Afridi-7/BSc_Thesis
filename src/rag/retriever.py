@@ -48,6 +48,11 @@ class ClinicalRetriever:
             'rag.internet.user_agent',
             'BloodSmearDomainExpert/1.0 (+https://github.com/)'
         )
+        # Optional allow-list of domain suffixes for web augmentation. When
+        # set, only URLs whose hostname ends in one of these suffixes are
+        # fetched. This is the recommended setting for clinical use.
+        allow = config.get('rag.internet.allowed_domains', []) or []
+        self.internet_allowed_domains = [d.lower().lstrip('.') for d in allow]
         self.chunk_size = config.get('rag.chunking.chunk_size', 500)
         self.overlap = config.get('rag.chunking.overlap', 50)
         self.top_k = config.get('rag.retrieval.top_k', 5)
@@ -219,23 +224,46 @@ class ClinicalRetriever:
                 logger.error(f"Failed to download {filename}: {exc}")
     
     def _init_chromadb(self) -> None:
-        """Initialize ChromaDB vector store."""
+        """Initialize ChromaDB vector store, reusing existing index when fresh."""
         import chromadb
         from chromadb.config import Settings
-        
+
         # Create persistent client
         self.chroma_client = chromadb.PersistentClient(
             path=str(Path(self.chromadb_path)),
             settings=Settings(anonymized_telemetry=False)
         )
-        
-        # Delete existing collection if it exists
+
+        expected_count = len(self.chunks)
+        existing = None
         try:
-            self.chroma_client.delete_collection(name=self.collection_name)
-            logger.info(f"Deleted existing collection: {self.collection_name}")
-        except Exception as e:
-            logger.debug(f"Collection did not exist or could not be deleted: {e}")
-        
+            existing = self.chroma_client.get_collection(name=self.collection_name)
+        except Exception:
+            existing = None
+
+        if existing is not None:
+            try:
+                existing_count = existing.count()
+            except Exception:
+                existing_count = -1
+
+            if existing_count == expected_count and expected_count > 0:
+                logger.info(
+                    "Reusing existing ChromaDB collection '%s' with %d chunks",
+                    self.collection_name, existing_count
+                )
+                self.chroma_collection = existing
+                return
+
+            logger.info(
+                "Existing ChromaDB collection size mismatch (have=%s, expected=%d); rebuilding",
+                existing_count, expected_count
+            )
+            try:
+                self.chroma_client.delete_collection(name=self.collection_name)
+            except Exception as exc:
+                logger.debug("delete_collection failed: %s", exc)
+
         # Create collection
         self.chroma_collection = self.chroma_client.create_collection(
             name=self.collection_name,
@@ -331,6 +359,9 @@ class ClinicalRetriever:
 
         candidates: List[Dict[str, Any]] = []
         for rank, result in enumerate(search_results, 1):
+            if not self._url_allowed(result['url']):
+                logger.debug("Skipping disallowed URL (not in allow-list): %s", result['url'])
+                continue
             try:
                 page_text = self._fetch_web_page_text(result['url'])
             except Exception as exc:
@@ -423,6 +454,30 @@ class ClinicalRetriever:
             return f"https://duckduckgo.com{decoded_url}"
 
         return decoded_url if decoded_url.startswith('http') else ''
+
+    def _url_allowed(self, url: str) -> bool:
+        """Return True if URL is permitted by the configured allow-list.
+
+        An empty allow-list means "any host" (preserves prior behaviour).
+        Only http(s) schemes are ever allowed.
+        """
+        if not url:
+            return False
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False
+        if parsed.scheme not in {'http', 'https'}:
+            return False
+        host = (parsed.hostname or '').lower()
+        if not host:
+            return False
+        if not self.internet_allowed_domains:
+            return True
+        return any(
+            host == d or host.endswith('.' + d)
+            for d in self.internet_allowed_domains
+        )
 
     def _fetch_web_page_text(self, url: str) -> str:
         """Fetch and clean a web page into plain text."""

@@ -12,8 +12,13 @@ def main():
     print("Initializing pipeline...")
     pipeline = BloodSmearPipeline()
     
-    # Path to blood smear image
-    image_path = "path/to/your/blood_smear.jpg"
+    # Path to blood smear image. Drop a .jpg/.png under examples/sample_images/
+    # or pass a CLI path: `python -m examples.single_image_inference path/to/img.jpg`
+    import sys
+    if len(sys.argv) > 1:
+        image_path = sys.argv[1]
+    else:
+        image_path = "examples/sample_images/blood_smear.jpg"
     
     # Run analysis
     print(f"Analyzing: {image_path}")

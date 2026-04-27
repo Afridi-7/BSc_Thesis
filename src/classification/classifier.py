@@ -88,8 +88,18 @@ class WBCClassifier:
         # Create base model
         model = timm.create_model('efficientnet_b0', pretrained=False, num_classes=self.num_classes)
 
-        # Load checkpoint
-        checkpoint = torch.load(model_path, map_location=self.device)
+        # Load checkpoint. Prefer weights_only=True (PyTorch >= 2.0) to mitigate
+        # arbitrary-code-execution risk from untrusted .pt files. Fall back only
+        # if the checkpoint truly cannot be loaded that way (e.g. older format).
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
+        except (TypeError, RuntimeError, Exception) as load_exc:  # noqa: BLE001
+            logger.warning(
+                "weights_only=True load failed (%s). Falling back to legacy load. "
+                "Only do this for checkpoints you trust.",
+                load_exc,
+            )
+            checkpoint = torch.load(model_path, map_location=self.device)
 
         # Handle different checkpoint formats
         if 'model_state_dict' in checkpoint:
@@ -329,8 +339,10 @@ class WBCClassifier:
         
         return {
             'total_samples': len(predictions),
+            'sample_count': len(predictions),  # alias for downstream consumers
             'uncertainty_distribution': uncertainty_dist,
             'flagged_count': flagged_count,
+            'flagged_samples': flagged_count,  # alias for schema consistency
             'flagged_percentage': 100.0 * flagged_count / len(predictions) if predictions else 0.0,
             'mean_confidence': float(np.mean(confidences)) if confidences else 0.0,
             'mean_entropy': float(np.mean(entropies)) if entropies else 0.0,

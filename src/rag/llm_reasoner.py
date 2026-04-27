@@ -353,8 +353,12 @@ Please provide your clinical interpretation following the safety requirements an
     ) -> Dict[str, Any]:
         """Create fallback response on error."""
         safety_flags = ['LLM_ERROR']
-        
-        if uncertainty_summary and uncertainty_summary.get('flagged_count', 0) > 0:
+
+        flagged = 0
+        if uncertainty_summary:
+            flagged = uncertainty_summary.get('flagged_count',
+                       uncertainty_summary.get('flagged_samples', 0)) or 0
+        if flagged > 0:
             safety_flags.append('HIGH_UNCERTAINTY')
         
         return {

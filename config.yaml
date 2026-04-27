@@ -85,9 +85,11 @@ rag:
   pdf_download_timeout_seconds: 30
   
   # Text chunking
+  # Note: 'sentence-transformers/all-MiniLM-L6-v2' has a 256-token context.
+  # Keeping chunks <= 200 words avoids silent truncation during embedding.
   chunking:
-    chunk_size: 500  # Words per chunk
-    overlap: 50  # Word overlap between chunks
+    chunk_size: 200  # Words per chunk
+    overlap: 40  # Word overlap between chunks
   
   # Embedding model
   embedding:
@@ -110,13 +112,22 @@ rag:
 
   # Internet-backed augmentation
   # When enabled, Stage 3 supplements local PDF evidence with best-effort web retrieval.
+  # SECURITY: arbitrary web content is fed to the LLM. Always pair with
+  # an allow-list of trusted domains. Disabled by default.
   internet:
-    enabled: true
+    enabled: false
     top_k: 3
     search_timeout_seconds: 10
     fetch_timeout_seconds: 10
     max_chars_per_source: 4000
     user_agent: "BloodSmearDomainExpert/1.0"
+    allowed_domains:
+      - "ncbi.nlm.nih.gov"
+      - "pubmed.ncbi.nlm.nih.gov"
+      - "medlineplus.gov"
+      - "who.int"
+      - "nih.gov"
+      - "hematology.org"
 
 # ============================================================================
 # LLM REASONING PARAMETERS (OpenAI GPT-4o)
@@ -181,7 +192,8 @@ logging:
 # SYSTEM SETTINGS
 # ============================================================================
 system:
-  random_seed: 42  # For reproducibility
+  random_seed: 42  # For reproducibility (Python, NumPy, PyTorch RNGs)
+  deterministic_torch: false  # Set true for strict cuDNN determinism (slower)
   num_workers: 4  # For data loading
   batch_size: 32  # For batch operations
   device_fallback: "cpu"  # Fallback if GPU unavailable
