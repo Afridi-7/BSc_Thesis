@@ -1,4 +1,4 @@
-﻿"""
+"""
 Example: Single image inference with Hybrid Multimodal Lab Assistant.
 
 This example shows how to analyze a single blood smear image.

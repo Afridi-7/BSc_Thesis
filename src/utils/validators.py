@@ -1,4 +1,4 @@
-﻿"""
+"""
 Validation utilities for Hybrid Multimodal Lab Assistant system.
 
 Provides validation functions for inputs, configurations, and data.

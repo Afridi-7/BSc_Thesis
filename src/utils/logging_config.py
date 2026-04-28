@@ -1,4 +1,4 @@
-﻿"""
+"""
 Logging configuration for Hybrid Multimodal Lab Assistant system.
 
 Provides consistent logging across all modules with file and console handlers.

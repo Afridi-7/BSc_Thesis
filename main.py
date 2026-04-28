@@ -1,4 +1,4 @@
-﻿"""
+"""
 Command-line interface for Hybrid Multimodal Lab Assistant system.
 
 Provides easy-to-use CLI for blood smear analysis.

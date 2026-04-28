@@ -1,4 +1,4 @@
-﻿# A Hybrid Multimodal Lab Assistant
+# A Hybrid Multimodal Lab Assistant
 
 > Blood Image Classification Combined with Domain-Expert LLM Reasoning and RAG
 

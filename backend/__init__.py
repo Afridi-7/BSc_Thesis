@@ -1,4 +1,4 @@
-﻿"""FastAPI backend for the Hybrid Multimodal Lab Assistant.
+"""FastAPI backend for the Hybrid Multimodal Lab Assistant.
 
 Run from this directory:
 

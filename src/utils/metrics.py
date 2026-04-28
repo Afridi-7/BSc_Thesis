@@ -1,4 +1,4 @@
-﻿"""
+"""
 Metrics calculation utilities for Hybrid Multimodal Lab Assistant system.
 
 Provides functions for computing uncertainty metrics, statistics, and evaluation metrics.

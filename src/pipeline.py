@@ -1,4 +1,4 @@
-﻿"""
+"""
 Main pipeline orchestrator for Hybrid Multimodal Lab Assistant system.
 
 Coordinates all three stages: Detection â†’ Classification â†’ RAG Reasoning

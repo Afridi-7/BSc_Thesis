@@ -1,4 +1,4 @@
-﻿"""FastAPI application entrypoint.
+"""FastAPI application entrypoint.
 
 Run locally from the ``backend/`` directory:
 

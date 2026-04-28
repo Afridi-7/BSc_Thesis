@@ -1,4 +1,4 @@
-﻿"""
+"""
 Hybrid Multimodal Lab Assistant System
 
 A clinically safer AI assistant for peripheral blood smear interpretation combining:

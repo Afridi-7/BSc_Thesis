@@ -1,4 +1,4 @@
-﻿# Hybrid Multimodal Lab Assistant - Requirements
+# Hybrid Multimodal Lab Assistant - Requirements
 # Python 3.8+ required
 
 # Core deep learning frameworks

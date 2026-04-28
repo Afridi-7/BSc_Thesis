@@ -1,4 +1,4 @@
-﻿"""
+"""
 Configuration loader for Hybrid Multimodal Lab Assistant system.
 
 Provides centralized configuration management with validation and defaults.
