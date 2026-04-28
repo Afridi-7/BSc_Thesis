@@ -8,7 +8,7 @@ Author: *Qudrat Ullah*
 Supervisor: *Dr. Hajdu András*
 Department: *Informatics*
 Institution: *University of Debrecen*
-Submitted: ? 2026
+Submitted: 2026
 
 ---
 
@@ -20,11 +20,11 @@ I declare that this thesis and the work presented in it are my own. Where inform
 
 ## Abstract
 
-Manual examination of peripheral blood smears under a microscope remains the diagnostic reference for many hematological conditions, but it is slow, observer-dependent, and unevenly accessible. Modern deep learning can localise and classify blood cells with super-human accuracy on clean benchmarks, yet such models are typically deployed as opaque black boxes and offer no clinical justification, no uncertainty, and no audit trail — properties that are non-negotiable in a medical decision-support context.
+Manual examination of peripheral blood smears under a microscope remains the diagnostic reference for many hematological conditions, but it is slow, observer-dependent, and unevenly accessible. Modern deep learning can localise and classify blood cells with very high benchmark accuracy under controlled conditions, yet such models are often deployed as narrow black boxes and offer limited clinical justification, uncertainty communication, or audit trail — properties that are essential in a medical decision-support context.
 
-This thesis presents a complete three-stage pipeline that addresses these gaps. **Stage 1** uses a YOLOv8s detector, fine-tuned on the TXL-PBC dataset (1,260 annotated smears), to localise white blood cells (WBC), red blood cells (RBC), and platelets at *mean Average Precision @ 0.50 IoU = 0.9849* on a held-out test split. **Stage 2** uses an EfficientNet-B0 classifier, fine-tuned on the eight-class PBC dataset of Acevedo *et al.*, to assign WBC subtypes at *99.44 % top-1 test accuracy* over 3,419 samples. Crucially, Stage 2 augments every prediction with **Monte Carlo Dropout** uncertainty estimates (entropy, predictive variance, and a low/medium/high reliability bucket) and **Grad-CAM** saliency maps, so that a clinician can both quantify and visually verify model confidence. **Stage 3** is a Retrieval-Augmented Generation (RAG) layer: 1,049 chunks from two open hematology textbooks are embedded with `all-MiniLM-L6-v2` into a persistent ChromaDB store, and queried by a LangChain ReAct agent built on GPT-4o. The agent has access to five purpose-built tools (knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts) and produces a JSON-structured clinical interpretation with grounded citations and an explicit `requires_expert_review` flag.
+This thesis presents a complete three-stage pipeline that addresses these gaps. **Stage 1** uses a YOLOv8s detector, fine-tuned on the TXL-PBC dataset (1,260 annotated smears), to localise white blood cells (WBC), red blood cells (RBC), and platelets at *mean Average Precision @ 0.50 IoU = 0.9849* on a held-out test split. **Stage 2** uses an EfficientNet-B0 classifier, fine-tuned on the eight-class PBC dataset of Acevedo *et al.*, to assign WBC subtypes at *99.44 % top-1 test accuracy* over 3,419 samples. Crucially, Stage 2 augments every prediction with **Monte Carlo Dropout** uncertainty estimates (entropy, predictive variance, and a low/medium/high reliability bucket) and **Grad-CAM** saliency maps, so that a reviewer can both quantify and visually inspect model confidence. **Stage 3** is a Retrieval-Augmented Generation (RAG) layer: 1,049 chunks from two open hematology textbooks are embedded with `all-MiniLM-L6-v2` into a persistent ChromaDB store, and queried by a LangChain ReAct agent built on GPT-4o. The agent has access to five purpose-built tools (knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts) and produces a JSON-structured clinical interpretation with grounded citations and an explicit `requires_expert_review` flag.
 
-The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 14 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, uncertainty-schema correctness, and CBC-aware reasoning. The contribution is not a new model architecture but a **demonstration that established components can be composed into a transparent, uncertainty-aware, citation-grounded multimodal system**, with the explainability properties that current end-to-end blood-smear classifiers lack.
+The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 14 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, uncertainty-schema correctness, and CBC-aware reasoning. The contribution is not a new neural-network architecture; it is an **integration-oriented trustworthy AI framework** showing that established components can be composed into a transparent, uncertainty-aware, citation-grounded, and auditable multimodal assistant for peripheral blood-smear analysis.
 
 **Keywords:** medical image analysis, peripheral blood smear, object detection, YOLOv8, fine-grained classification, EfficientNet, Monte Carlo Dropout, Grad-CAM, retrieval-augmented generation, large language models, LangChain, ReAct agent, trustworthy AI, clinical decision support.
 
@@ -56,9 +56,10 @@ I would like to thank my supervisor for the academic guidance and the patience e
 16. [Appendix B — Output JSON Schema](#appendix-b--output-json-schema)
 17. [Appendix C — Reproducibility Checklist](#appendix-c--reproducibility-checklist)
 18. [Appendix D — Repository Layout](#appendix-d--repository-layout)
-19. [List of Figures](#list-of-figures)
-20. [List of Tables](#list-of-tables)
-21. [Glossary of Abbreviations](#glossary-of-abbreviations)
+19. [Appendix E — Figure Recommendations for the Final PDF](#appendix-e--figure-recommendations-for-the-final-pdf)
+20. [List of Figures](#list-of-figures)
+21. [List of Tables](#list-of-tables)
+22. [Glossary of Abbreviations](#glossary-of-abbreviations)
 
 ---
 
@@ -87,6 +88,7 @@ I would like to thank my supervisor for the academic guidance and the patience e
 - **Table 5.1** — Per-class recall on the PBC test split (Stage 2).
 - **Table 5.2** — Stage 2 Phase 1 hyperparameters (frozen backbone).
 - **Table 5.3** — Stage 2 Phase 2 hyperparameters (full fine-tune).
+- **Table 2.1** — Comparison of related blood-smear AI systems and the proposed framework.
 - **Table 6.1** — RAG corpus chunk counts.
 - **Table 6.2** — Stage 3 agent tool registry.
 - **Table 9.1** — End-to-end latency budget (CPU laptop).
@@ -151,7 +153,7 @@ Despite its diagnostic value, manual smear review has well-documented limitation
 - It is **unevenly distributed**: in many low-resource settings access to a board-certified hematologist is hours or days away from the bedside.
 - It does **not scale** to the volumes generated by modern digital microscopy, where whole-slide imaging can produce thousands of fields per slide.
 
-Automated analysis of digitised smears is therefore an active and well-funded research direction. The state of the art on closed benchmarks already exceeds 99 % top-1 accuracy on WBC subtype classification and >0.95 mAP on cell detection. The harder, unsolved problem is not raw accuracy — it is **trust**: how can such a system be deployed in a clinical workflow when its predictions are silent, miscalibrated under distribution shift, and impossible to audit?
+Automated analysis of digitised smears is therefore an active and well-funded research direction. Published systems on curated closed benchmarks already report very high WBC subtype classification accuracy and strong object-detection performance. The harder, less solved problem is not only raw accuracy — it is **trust**: how can such a system support a clinical workflow when its predictions may be silent about uncertainty, fragile under distribution shift, and difficult to audit?
 
 ### 1.2 Problem statement
 
@@ -167,18 +169,22 @@ The thesis is organised around four questions:
 
 - **RQ1.** Can a publicly available, fine-tunable, real-time object detector (YOLOv8) achieve clinically meaningful detection performance on a heterogeneous combined blood-smear dataset?
 - **RQ2.** Can a moderately sized convolutional classifier (EfficientNet-B0), augmented with Monte Carlo Dropout and Grad-CAM, deliver per-cell predictions accompanied by both quantitative uncertainty and visual saliency that a non-ML clinician can interpret?
-- **RQ3.** Can a retrieval-augmented language model, driven by an agentic ReAct loop, produce textbook-grounded interpretations of an automated differential, including uncertainty-aware safety flags and verifiable citations, *without* hallucinating clinical claims?
+- **RQ3.** Can a retrieval-augmented language model, driven by an agentic ReAct loop, produce textbook-grounded interpretations of an automated differential, including uncertainty-aware safety flags and verifiable citations, while reducing unsupported clinical claims through explicit grounding?
 - **RQ4.** Can these three stages be unified into a reproducible software artefact (configuration-driven library + REST API + browser SPA) that can be operated by a non-engineer in under five minutes from a fresh machine?
 
-### 1.4 Contributions
+### 1.4 Research contributions
 
-This thesis makes the following contributions:
+The novelty of this thesis is deliberately framed as **system integration for trustworthy medical AI**, rather than as a new neural-network architecture. The work contributes an end-to-end framework in which detection, classification, uncertainty estimation, explainability, retrieval, and clinical reasoning are connected through auditable interfaces. The main contributions are:
 
-1. **A composed three-stage pipeline** in which each stage's output schema is explicitly designed to be consumed by the next, with a single YAML configuration acting as the source of truth.
-2. **An empirical evaluation** of YOLOv8s on the TXL-PBC blood cell detection dataset (1,260 images, 3 classes), achieving mAP@0.50 = 0.9849, mAP@[0.50:0.95] = 0.8762, precision = 0.9759, recall = 0.9606 on a held-out 126-image test split.
-3. **An empirical evaluation** of EfficientNet-B0 on the 8-class PBC peripheral blood-cell dataset, achieving 99.44 % top-1 accuracy on a 3,419-sample test split, with per-class recall ranging from 0.95 (immature granulocytes) to 1.00 (basophils, eosinophils, erythroblasts, platelets).
-4. **A novel agentic Stage 3** in which a LangChain ReAct agent over GPT-4o is given five purpose-built tools and required to emit JSON-structured output containing grounded citations, a differential diagnosis, safety flags, and a `requires_expert_review` Boolean; the full Thought/Action/Observation trace is preserved and rendered in the user interface for auditability.
-5. **A reproducible engineering artefact** — a single virtual environment, declarative YAML, FastAPI backend, React+TypeScript frontend, Pytest suite — released as supplementary material.
+1. **A multimodal pipeline integration.** The thesis combines blood-smear image analysis with optional Complete Blood Count (CBC) tabular context, allowing Stage 3 to reason over both visual and laboratory evidence when both are available.
+2. **A YOLOv8-based detection stage.** A YOLOv8s detector is fine-tuned and evaluated on the TXL-PBC blood-cell detection dataset (1,260 images, 3 classes), achieving mAP@0.50 = 0.9849, mAP@[0.50:0.95] = 0.8762, precision = 0.9759, recall = 0.9606 on a held-out 126-image test split.
+3. **An EfficientNet-based WBC classification stage.** EfficientNet-B0 is fine-tuned and evaluated on the eight-class PBC peripheral blood-cell dataset, achieving 99.44 % top-1 accuracy on a 3,419-sample test split, with the lowest per-class recall observed for immature granulocytes.
+4. **Uncertainty-aware inference.** The classifier is augmented with Monte Carlo Dropout, predictive entropy, probability margins, and configurable low/medium/high uncertainty buckets so that difficult cells can be marked for review rather than treated as equally reliable predictions.
+5. **Visual explainability through Grad-CAM.** Each classified WBC crop is accompanied by a Grad-CAM saliency map, giving the reviewer a visual check that the classifier attends to morphologically plausible regions rather than background, staining artefacts, or neighbouring cells.
+6. **Citation-grounded clinical reasoning.** Stage 3 uses retrieval-augmented generation over 1,049 chunks from two hematology textbooks, so that generated interpretations are tied to retrieved textual evidence instead of being free-form LLM assertions.
+7. **Agentic reasoning with GPT-4o and LangGraph ReAct.** The system implements a tool-using ReAct agent with knowledge-base search, laboratory reference ranges, differential interpretation, uncertainty summaries, and detection-count access. The resulting tool trace is preserved as an audit artefact.
+8. **Deterministic expert-review flags.** The `requires_expert_review` flag is computed by policy logic over uncertainty and safety signals rather than delegated to the LLM, making the safety pathway reproducible and inspectable.
+9. **A reproducible and auditable engineering architecture.** The project is released as a configuration-driven Python library, FastAPI backend, React+TypeScript frontend, and pytest-covered supplementary artefact, enabling the reported experiments and demonstrations to be inspected and rerun.
 
 ### 1.5 Structure of this document
 
@@ -192,15 +198,24 @@ This thesis makes the following contributions:
 
 Early work on automated leukocyte differential counting dates to the 1970s commercial systems such as Coulter VCS and Sysmex SE, which used flow cytometric impedance and optical scattering rather than image analysis. The first wave of true image-based analysers appeared in the 2000s with CellaVision DM-series instruments, which combined automated microscopy with classical computer vision (segmentation by colour-space thresholding, hand-crafted geometric and texture features) and shallow neural networks. These systems achieved usable accuracy on the five major WBC classes but degraded sharply on rare or atypical morphologies and required staining protocols within tight tolerances.
 
-The deep learning era opened with Habibzadeh *et al.* (2018) and Acevedo *et al.* (2019, 2020) demonstrating that off-the-shelf CNNs (VGG, ResNet, DenseNet) could match or exceed expert-level WBC classification accuracy on curated datasets. Acevedo *et al.* in particular published the **PBC dataset** (often called the "Acevedo dataset" or "Mendeley PBC dataset"; DOI `10.17632/snkd93bnjr.1`), comprising 17,092 single-cell images across 8 classes from 100 donors, captured on a CellaVision DM96 with consistent staining. This dataset is now the *de facto* benchmark for peripheral blood-cell classification and is the dataset on which Stage 2 of this thesis is fine-tuned.
+The deep learning era opened with Habibzadeh *et al.* (2018) and Acevedo *et al.* (2019, 2020) demonstrating that off-the-shelf CNNs (VGG, ResNet, DenseNet) could achieve very high WBC classification accuracy on curated datasets. Acevedo *et al.* in particular published the **PBC dataset** (often called the "Acevedo dataset" or "Mendeley PBC dataset"; DOI `10.17632/snkd93bnjr.1`), comprising 17,092 single-cell images across 8 classes from 100 donors, captured on a CellaVision DM96 with consistent staining. This dataset is now a widely used benchmark for peripheral blood-cell classification and is the dataset on which Stage 2 of this thesis is fine-tuned.
 
 For *detection* (i.e. localising cells before classifying them) the dominant trajectory has been adopting general-purpose object detectors — Faster R-CNN, RetinaNet, and the YOLO series — and fine-tuning them on annotated smears. The **BCCD** dataset (Mooney 2018) provides ~360 images with WBC, RBC, and platelet bounding boxes; **TXL-PBC** is a more recent merged corpus that combines BCCD with additional annotations and balances class proportions, yielding 1,260 images split 882/252/126 across train/val/test. Stage 1 of this thesis fine-tunes YOLOv8s (Jocher *et al.* 2023) on TXL-PBC.
 
-The aspect that almost all of this prior work shares is that it stops at the per-cell label. The clinical interpretation of *the differential as a whole* — left shift, neutrophilia, atypical lymphocytosis, etc. — is left to the human reader. This thesis explicitly builds the next layer on top of an accurate cell-level detector and classifier.
+The aspect that much of this prior work shares is that it stops at the per-cell label. The clinical interpretation of *the differential as a whole* — left shift, neutrophilia, atypical lymphocytosis, etc. — is left to the human reader. This thesis explicitly builds the next layer on top of an accurate cell-level detector and classifier.
+
+Table 2.1 summarises how the proposed framework differs from common categories of related systems. The comparison is qualitative: it describes architectural capabilities rather than claiming that all systems in a category share identical implementations.
+
+| System family | Detection | Classification | Explainability | Uncertainty estimation | RAG | Agentic reasoning |
+|---|---|---|---|---|---|---|
+| Typical CNN blood-smear classifiers | Usually absent; assumes pre-cropped cells | CNN or transfer-learning classifier | Rare or post-hoc only | Usually absent beyond softmax confidence | No | No |
+| CellaVision-style image-analysis systems | Automated microscopy and segmentation | Classical or learned WBC pre-classification | Human review interface, limited model transparency | Limited or proprietary | No | No |
+| Standard detection/classification pipelines | Object detector followed by cell classifier | Detector-to-classifier workflow | Sometimes saliency or overlays | Usually not propagated downstream | No | No |
+| Proposed framework | YOLOv8s WBC/RBC/platelet detection | EfficientNet-B0 WBC subtype classification | Bounding boxes, Grad-CAM, citations, agent trace | MC-Dropout entropy, margin, reliability buckets, expert-review flag | Yes, over hematology textbook chunks | Yes, LangGraph ReAct with domain tools |
 
 ### 2.2 Uncertainty quantification in deep learning
 
-A neural network's softmax output is *not* a calibrated probability. Guo *et al.* (2017) demonstrated that modern CNNs are systematically over-confident, and the gap widens dramatically under distribution shift. For a clinical decision-support system this is dangerous: a model that confidently mis-classifies an unusual cell offers worse decision support than no model at all.
+A neural network's softmax output is *not* a calibrated probability. Guo *et al.* (2017) demonstrated that modern CNNs are systematically over-confident, and the gap can widen under distribution shift. For a clinical decision-support system this is dangerous: a model that confidently mis-classifies an unusual cell offers worse decision support than no model at all.
 
 The principled solution is Bayesian deep learning, where the network's weights are treated as random variables and the posterior over weights induces a posterior over predictions. Exact Bayesian inference is intractable for networks of any practical size, so a number of approximations have been proposed:
 
@@ -222,7 +237,7 @@ In a clinical context Grad-CAM is most useful as a **failure-mode detector** rat
 
 Large language models (GPT-4-class) demonstrate emergent ability to answer medical questions at or above the level of human residents on multiple-choice benchmarks (USMLE, MedQA). Two failure modes block their direct use as clinical assistants: **hallucination** of factually incorrect claims phrased with high fluency, and **opacity** with respect to the source of any given claim.
 
-Retrieval-Augmented Generation (RAG; Lewis *et al.* 2020) addresses both failures by grounding the LLM's outputs in a retrieved set of source documents. The standard RAG pipeline is: chunk source documents → embed each chunk into a vector space → at query time, embed the query and return the top-k nearest chunks → prompt the LLM with the query *and* the retrieved chunks, instructing it to answer using only that context and to cite the chunks. With a strict "no citation, no claim" prompt and a sensible chunk size, hallucination rates drop dramatically and every claim becomes auditable.
+Retrieval-Augmented Generation (RAG; Lewis *et al.* 2020) addresses both failures by grounding the LLM's outputs in a retrieved set of source documents. The standard RAG pipeline is: chunk source documents → embed each chunk into a vector space → at query time, embed the query and return the top-k nearest chunks → prompt the LLM with the query *and* the retrieved chunks, instructing it to answer using only that context and to cite the chunks. With a strict "no citation, no claim" prompt and a sensible chunk size, unsupported claims become easier to detect because they can be checked against the retrieved evidence.
 
 This thesis builds the RAG corpus from two openly licensed hematology textbooks (`essentials_haematology.pdf` and `consie_haematology.pdf`), chunked at 200 words with 40-word overlap, embedded with `sentence-transformers/all-MiniLM-L6-v2` (384-dim), and stored in ChromaDB.
 
@@ -230,7 +245,7 @@ This thesis builds the RAG corpus from two openly licensed hematology textbooks 
 
 Standard RAG performs a single retrieval before a single generation. ReAct (Yao *et al.* 2022) generalises this by interleaving Reasoning steps and Acting steps: the LLM emits a Thought, then chooses an Action (a tool call), then observes the Action's result, then emits the next Thought, and so on, until it decides to emit a Final Answer. This loop allows an agent to issue multiple targeted retrievals, consult numeric reference tables, sanity-check intermediate conclusions, and decompose complex queries.
 
-LangGraph's `create_react_agent` (LangChain Inc. 2024) provides a production-grade implementation of this loop with structured tool calling. Stage 3 of this thesis registers five tools — knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts — and caps the loop at six iterations. The full trace is persisted and surfaced to the user, providing a level of explainability that single-shot RAG cannot.
+LangGraph's `create_react_agent` (LangChain Inc. 2024) provides a mature implementation of this loop with structured tool calling. Stage 3 of this thesis registers five tools — knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts — and caps the loop at six iterations. The full trace is persisted and surfaced to the user, providing a level of explainability that single-shot RAG cannot.
 
 ### 2.6 Trustworthy AI in medical decision support
 
@@ -276,7 +291,7 @@ Three independent consumers all import the same Python library:
 |---|---|---|
 | Command-line interface | `python main.py analyze ...` | Reproducibility, batch evaluation, scripted runs |
 | HTTP backend | `uvicorn main:app` (FastAPI) | Frontend, REST integration, notebook calls |
-| Test suite & notebooks | `pytest`, Jupyter | CI, ablation studies |
+| Test suite & notebooks | `pytest`, Jupyter | Regression tests, exploratory analyses |
 
 This is enforced architecturally by extracting the orchestrator into a single class, `BloodSmearPipeline`, in [src/pipeline.py](src/pipeline.py). There is exactly one inference path; the CLI and the HTTP server are thin wrappers.
 
@@ -287,7 +302,7 @@ Every runtime parameter — model paths, confidence thresholds, MC-Dropout passe
 This decision has three consequences for the thesis:
 
 1. **Reproducibility**: A run is fully described by the SHA-256 of its `config.yaml`. The output JSON includes this hash in `metadata.config_hash`.
-2. **Ablation studies are trivial**: switching from agentic to single-shot reasoning, or disabling Grad-CAM, or changing the embedder, requires editing one line — no code change, no rebuild.
+2. **Controlled architectural comparisons are straightforward**: switching from agentic to single-shot reasoning, disabling Grad-CAM, or changing the embedder requires editing one line — no code change, no rebuild. This supports future comparative experiments without implying that all such experiments have already been performed.
 3. **Operator ergonomics**: a non-engineer can change behaviour by editing YAML; they never need to read the pipeline's Python source.
 
 ### 3.3 Why three stages instead of an end-to-end model?
@@ -439,7 +454,7 @@ The headline mAP@0.50 of 0.9849 places this detector in the upper tier of publis
 1. The TXL-PBC test split (126 images) is small. The 95 % bootstrap CI on mAP@0.50 (resampled at the image level) is approximately ±0.005, so the true generalisation error rate within the *same* dataset is well-characterised, but generalisation to *other* smear sources (different microscopes, stains, magnifications) is unverified.
 2. The dominant error mode is small-object detection: platelets at very low pixel size (< 8×8) are occasionally missed. A higher-resolution input (`imgsz=960`) reduces this at the cost of throughput.
 
-For the purposes of the downstream pipeline, Stage 1's performance is largely sufficient: WBC recall of 1.00 on the test set means that Stage 2 will see essentially every white blood cell that is annotated in the ground truth.
+For the purposes of the downstream pipeline, Stage 1's performance is largely sufficient under the evaluated split: WBC recall of 1.00 on the test set means that Stage 2 receives all WBCs annotated in that ground truth.
 
 ---
 
@@ -527,7 +542,7 @@ up-sampled bilinearly to 224 × 224 and α-blended over the input crop with α =
 
 **Top-1 accuracy on the 3,419-sample test split: 99.44 %.**
 
-The per-class scikit-learn classification report shows per-class precision and recall in the [0.95, 1.00] range (Table 5.1), and the normalised confusion matrix (Figure 5.1) is near-perfectly diagonal:
+The per-class scikit-learn classification report shows per-class precision and recall in the [0.95, 1.00] range (Table 5.1), and the normalised confusion matrix (Figure 5.1) is strongly diagonal:
 
 | Class | Recall (diagonal) |
 |---|---|
@@ -542,7 +557,7 @@ The per-class scikit-learn classification report shows per-class precision and r
 
 ![Figure 5.1 — Normalised confusion matrix for Stage 2 on the PBC test split.](Notebooks/Efficientnet_classification/results/confusion_matrix.png)
 
-The principal residual error is `ig → neutrophil` (0.03) and `ig → erythroblast` (0.01), which is morphologically defensible: immature granulocytes are by definition transitional cells, and their visual discrimination from late-stage neutrophil precursors is exactly the kind of decision that a board-certified hematologist also finds non-trivial. This is the strongest empirical justification for the uncertainty layer: cells in this confusion sub-graph score the highest entropy and are correctly bucketed `medium` or `high`.
+The principal residual error is `ig → neutrophil` (0.03) and `ig → erythroblast` (0.01), which is morphologically defensible: immature granulocytes are by definition transitional cells, and their visual discrimination from late-stage neutrophil precursors is a known difficult boundary in smear review. This motivates the uncertainty layer: predictions in this confusion sub-graph should be treated as candidates for closer review rather than as ordinary high-confidence labels.
 
 Training and fine-tuning curves (Figure 5.2) show the expected two-phase behaviour: a slow climb to ~89 % during Phase 1 with the backbone frozen, then a sharp jump to ~99 % within the first three epochs of Phase 2 once the backbone is unlocked at 1 × 10⁻⁴.
 
@@ -554,15 +569,25 @@ A qualitative grid of correct test-set predictions with confidence scores is sho
 
 ### 5.8 Calibration
 
-A standard concern with deep classifiers is that even a 99 %-accurate model can be poorly calibrated: it may predict 0.99 confidence on the tiny set of cells it gets wrong. With MC-Dropout active, we observe (qualitatively, in the produced JSON outputs) that the entropy distribution is bimodal: a sharp peak at $H \approx 0$ for the easy majority of cells and a heavier tail for the `ig` confusions. The default thresholds correctly bucket roughly 1–2 % of test cells into `medium`/`high`, which matches the empirical error rate of 0.56 %. A formal expected-calibration-error (ECE) study is left as future work.
+A standard concern with deep classifiers is that even a highly accurate model can be poorly calibrated: it may assign very high confidence to the small set of samples it misclassifies. Calibration is therefore distinct from accuracy. Accuracy asks whether the top-1 class is correct; calibration asks whether the reported confidence is statistically meaningful. A well-calibrated classifier that assigns 0.90 confidence to a set of predictions should be correct on approximately 90 % of those predictions.
 
-### 5.9 Failure modes and mitigations
+The common summary statistic for this property is **Expected Calibration Error (ECE)**. Predictions are grouped into confidence bins, and each bin compares empirical accuracy with mean predicted confidence. In one common formulation,
 
-The class confusion matrix and qualitative inspection of the Grad-CAM heatmaps surface three principal failure modes:
+$$
+\mathrm{ECE} = \sum_{m=1}^{M} \frac{|B_m|}{n}\,\left|\mathrm{acc}(B_m) - \mathrm{conf}(B_m)\right|,
+$$
 
-1. **`ig` ↔ `neutrophil` confusion** — the morphological boundary is genuinely fuzzy; mitigated by the uncertainty signal and Stage 3 safety flag.
-2. **Out-of-domain crops** — if Stage 1 produces a low-quality WBC bounding box (clipped at image edge, occluded by another cell), Stage 2 will produce an over-confident wrong prediction. Mitigated by Stage 1's confidence threshold (configurable) and by visual verification via Grad-CAM.
-3. **Stain variation** — PBC is a single-source dataset (CellaVision DM96 at one hospital). Smears stained with substantially different protocols may degrade accuracy. Quantification of this distribution shift is left as future work.
+where $B_m$ is the set of samples in bin $m$, $n$ is the total number of samples, $\mathrm{acc}(B_m)$ is the empirical accuracy in that bin, and $\mathrm{conf}(B_m)$ is the average predicted confidence. This thesis does not report ECE values or reliability diagrams, because a formal calibration experiment was not performed. Instead, MC-Dropout is used as a pragmatic uncertainty mechanism that exposes entropy, predictive variance, and probability margins to downstream stages. A future calibration study should compute ECE, Brier score, and uncertainty-as-error-detection metrics under both in-domain and out-of-domain smear conditions.
+
+### 5.9 Failure analysis
+
+The class confusion matrix and qualitative inspection of Grad-CAM heatmaps indicate several plausible failure modes. These observations should be interpreted qualitatively; no separate failure taxonomy with statistically powered counts was performed.
+
+1. **Immature granulocyte confusion.** The most important residual classification boundary is between immature granulocytes, neutrophils, and erythroblasts. This is clinically plausible because immature granulocytes are transitional forms with overlapping morphology. The mitigation is not to claim complete separation, but to propagate uncertainty and mark such cases for expert review.
+2. **Low-quality crops.** If Stage 1 produces a clipped, partially occluded, or poorly centred WBC crop, Stage 2 receives an input that differs from the clean single-cell crops used during training. Grad-CAM can help identify these cases when saliency spreads into background or neighbouring structures.
+3. **Stain variation and domain shift.** The PBC dataset was acquired under controlled conditions. Smears from different laboratories, scanners, stain protocols, or illumination settings may shift colour and texture statistics in ways not represented in the training set.
+4. **Noisy or crowded smears.** Dense fields, overlapping cells, debris, and staining artefacts can affect both detection and classification. These cases are especially important because errors can compound: a poor bounding box can create a poor classification crop, which can then affect downstream reasoning.
+5. **Uncertainty-aware difficult cases.** The practical role of uncertainty is to make difficult cases visible. The system is designed so that high-uncertainty cells are not silently absorbed into the differential; they are propagated to Stage 3 and can trigger the deterministic expert-review policy.
 
 ---
 
@@ -865,11 +890,11 @@ Empirically, on a held-out batch of 50 sample images, the agent emitted a schema
 
 ### 10.1 What was demonstrated
 
-The four research questions posed in [§1.3](#13-research-questions) can each be answered affirmatively:
+The four research questions posed in [§1.3](#13-research-questions) can be addressed as follows within the experimental scope of this thesis:
 
-- **RQ1 (detection)**: YOLOv8s fine-tuned on a 1,260-image dataset reaches mAP@0.50 = 0.9849 — clinically meaningful in the sense that it correctly localises the cells of interest in essentially every test image, with WBC recall of 1.00.
-- **RQ2 (classification with uncertainty)**: EfficientNet-B0 + MC-Dropout + Grad-CAM achieves 99.44 % top-1 accuracy, while bucketing approximately 1–2 % of cells into `medium`/`high` uncertainty — a rate that closely matches the empirical error rate, demonstrating that the uncertainty signal is well-correlated with actual mistakes.
-- **RQ3 (agentic clinical reasoning)**: A LangChain ReAct agent over GPT-4o, equipped with five domain-specific tools, produces JSON-structured interpretations with grounded citations and a deterministic `requires_expert_review` flag, validated on 50 held-out samples with 100 % schema-validity rate.
+- **RQ1 (detection)**: YOLOv8s fine-tuned on a 1,260-image dataset reaches mAP@0.50 = 0.9849 under the evaluated TXL-PBC split, with WBC recall of 1.00 on that split.
+- **RQ2 (classification with uncertainty)**: EfficientNet-B0 + MC-Dropout + Grad-CAM achieves 99.44 % top-1 accuracy under the evaluated PBC split, while exposing uncertainty and saliency metadata that make difficult predictions inspectable.
+- **RQ3 (agentic clinical reasoning)**: A LangChain ReAct agent over GPT-4o, equipped with five domain-specific tools, produces JSON-structured interpretations with grounded citations and a deterministic `requires_expert_review` flag in the reported sample runs.
 - **RQ4 (deployable artefact)**: The system is delivered as a single repository with one `requirements.txt`, one `config.yaml`, one `.env`, a 13-test pytest suite, and a frontend that runs in the browser. A user with Python and Node installed can be running the full pipeline in under five minutes.
 
 ### 10.2 The value of staging
@@ -882,7 +907,7 @@ Second, it makes **per-stage replacement** trivial. Mid-thesis, the original Sta
 
 ### 10.3 The role of uncertainty
 
-The single most clinically important contribution of the system is *not* its 99.44 % test accuracy — it is the fact that the residual 0.56 % of errors is concentrated in the `medium` / `high` uncertainty buckets and that this metadata is propagated into Stage 3, where it flips `requires_expert_review` to `true`. A 99.44 % accurate but uncertainty-blind classifier has the same accuracy and dramatically less clinical utility, because the consumer cannot know *which* of its predictions to trust.
+The single most clinically relevant design principle of the system is *not* only its 99.44 % test accuracy, but the fact that each prediction carries metadata about reliability. A high-accuracy but uncertainty-blind classifier offers little guidance about which predictions deserve closer inspection. By contrast, MC-Dropout entropy, probability margins, and reliability buckets create a structured channel through which difficult cells can be surfaced to the reviewer and passed into Stage 3. This does not prove clinical calibration, but it makes uncertainty a first-class part of the workflow rather than an afterthought.
 
 ### 10.4 The role of grounded reasoning
 
@@ -891,6 +916,26 @@ A free-form LLM interpretation of an automated differential is exactly the kind 
 ### 10.5 The role of the user interface
 
 The frontend is more than a convenience: it operationalises the safety story. A reviewer who only ever consumes the CLI's JSON output may miss the `requires_expert_review` flag in a wall of text. The UI surfaces it as a coloured banner; it surfaces high-uncertainty cells as red rows; it surfaces missing citations as a warning icon. The same JSON, rendered well, communicates safety more reliably.
+
+### 10.6 Architectural and analytical discussion
+
+This thesis does not report quantitative studies comparing every architectural variant. Instead, the design choices can be analysed qualitatively in terms of their expected role in a trustworthy pipeline.
+
+**MC-Dropout** is expected to be valuable because the most important safety failures are not necessarily the most common classification errors, but the errors that appear confident. Keeping dropout active at inference produces multiple stochastic predictions for the same crop, allowing the system to detect unstable class assignments. This is computationally cheaper than deep ensembles and simple to integrate into the existing EfficientNet checkpoint, but it remains an approximation and should be compared against stronger uncertainty methods in future work.
+
+**RAG** is expected to reduce unsupported clinical reasoning by forcing Stage 3 to answer using retrieved hematology textbook chunks. This does not guarantee correctness: retrieval can miss relevant context, the LLM can still overgeneralise, and source coverage is limited to the included textbooks. Nevertheless, RAG changes the review problem from "trust the generated text" to "inspect the cited evidence", which is a more defensible interaction pattern for a research assistant.
+
+**Agentic reasoning** is expected to improve auditability because the model does not only receive a single retrieved context window. It can call tools for reference ranges, uncertainty summaries, detection counts, and additional knowledge-base queries, and each call is logged. The cost is additional latency and operational complexity. The present thesis demonstrates this architecture, while a future controlled comparison should evaluate linear RAG against agentic RAG using clinically judged correctness, citation faithfulness, and error recovery rather than synthetic aggregate scores alone.
+
+### 10.7 Qualitative case studies
+
+The following case studies are qualitative descriptions of representative system behaviours. They are included to clarify how the pipeline is intended to be interpreted, not as a substitute for a blinded clinical evaluation.
+
+**Case 1: confident normal-appearing differential.** In a clean smear field where Stage 1 produces well-centred WBC crops and Stage 2 assigns common mature classes with low uncertainty, Grad-CAM should concentrate on the cell body rather than the slide background. Stage 3 can then produce a restrained interpretation that reports the observed distribution, cites the hematology corpus for normal differential context, and leaves `requires_expert_review` false unless other safety rules are triggered.
+
+**Case 2: ambiguous immature granulocyte.** When a cell lies near the immature-granulocyte/neutrophil boundary, the expected behaviour is not to force overconfident certainty. The classifier may still output a top-1 class, but higher entropy or a smaller probability margin should make the prediction visible as uncertain. Grad-CAM helps the reviewer judge whether morphology or artefact drove the decision, and Stage 3 should reflect the uncertainty rather than presenting the automated differential as definitive.
+
+**Case 3: noisy or low-quality smear field.** In a crowded, poorly stained, or partially clipped field, Stage 1 may produce suboptimal crops and Stage 2 saliency may be diffuse or background-focused. Such cases illustrate why the pipeline exposes intermediate artefacts: the reviewer can inspect the bounding box, crop, uncertainty bucket, and heatmap before reading the generated interpretation. The deterministic expert-review policy is designed for exactly these difficult cases.
 
 ---
 
@@ -902,18 +947,26 @@ The frontend is more than a convenience: it operationalises the safety story. A 
 - **Small Stage-1 test set.** 126 images give a 95 % bootstrap CI of ±0.005 on mAP@0.50; this is tight enough for the headline number but loose enough that small per-class differences may not be statistically significant.
 - **MC-Dropout is an approximation.** Deep ensembles would likely give better-calibrated uncertainty at 5–10× compute cost. The work does not benchmark MC-Dropout against ensembles directly.
 
-### 11.2 External validity
+### 11.2 Dataset bias and leakage risk
+
+The benchmark results should be interpreted in light of the acquisition conditions of the datasets. The PBC classification data were captured under controlled imaging conditions using a CellaVision DM96 system and consistent staining. This standardisation is valuable for model development, but it also makes the dataset simpler than routine clinical deployment, where scanner optics, illumination, staining protocols, smear thickness, and laboratory procedures vary substantially.
+
+There is also a possible donor-overlap concern in public single-cell datasets. The PBC dataset contains cells from 100 donors, and the thesis uses the provided image-level split rather than a prospectively collected patient-level external validation cohort. If visually similar cells from the same donor or acquisition session are distributed across splits, benchmark performance can be optimistic relative to a true cross-patient or cross-hospital evaluation. This thesis does not claim to eliminate that risk.
+
+For Stage 1, TXL-PBC combines public detection annotations into a convenient training corpus, but it remains a limited public benchmark rather than a multi-institution clinical validation set. Standardised staining, relatively clean fields, and limited staining diversity may all inflate performance compared with noisy real-world smears. The absence of cross-hospital validation is therefore a central limitation: the reported metrics demonstrate effectiveness under evaluated benchmark conditions, not clinical generalisation.
+
+### 11.3 External validity
 
 - **No in-vivo validation.** No clinician was asked to evaluate the agent's interpretations; no clinician was asked to compare its outputs against their own. Such validation is an in-life clinical study, not an undergraduate thesis.
 - **English-only knowledge base.** The textbooks are in English; the agent reasons in English. The system has not been tested in any other language.
 - **OpenAI dependency.** Stage 3 default uses a hosted commercial API. Despite the architectural provider-agnosticism, fully on-prem deployment requires a self-hosted OpenAI-compatible LLM server and was not part of the experimental scope.
 
-### 11.3 Construct validity
+### 11.4 Construct validity
 
 - **`requires_expert_review` is policy, not science.** The decision rule combining safety flags into the boolean is a heuristic encoded by the author; it has not been clinically calibrated.
 - **Retrieval evaluation is informal.** 20 hand-written queries with hand-annotated expected terms are an indicator, not a benchmark. A held-out IR-style evaluation with clinically-judged relevance would be required to publish a formal retrieval claim.
 
-### 11.4 Construct robustness
+### 11.5 Construct robustness
 
 - **Adversarial robustness is not evaluated.** Standard-issue adversarial perturbations on Stage 1 inputs would likely degrade detection performance; no robustness-training was performed. This is consistent with the wider state of the medical-imaging literature but is a real-world limitation.
 
@@ -925,7 +978,7 @@ Five avenues are most promising:
 
 1. **Multi-source generalisation.** Re-evaluate Stages 1 and 2 on a smear corpus from a different institution / microscope / stain protocol (e.g. the LISC dataset or a private hospital partnership). Quantify accuracy drop and recover with domain adaptation.
 2. **Calibration study.** Compare MC-Dropout (T = 20) against deep ensembles (N = 5) and Laplace approximation on Stage 2, reporting expected calibration error, Brier score, and AUROC of uncertainty as an error predictor.
-3. **Domain-specialised reasoner.** The current Stage 3 uses a general-purpose GPT-4o grounded by RAG. A self-hostable, *domain-expert* alternative was built and trained as part of this thesis: an 8B-parameter Llama-3.1-Instruct model QLoRA-fine-tuned on **2 098 grounded Q&A pairs** synthesised by GPT-4o from the project's 1 049 textbook chunks in ChromaDB. The resulting LoRA adapter is publicly hosted at <https://huggingface.co/Afridi07/hematology-llama-3.1-8b-lora> (≈50 MB). The reproducible pipeline lives in this repository: `Notebooks/Domain_Expert_Finetune/domain_expert_finetune.ipynb` runs the QLoRA on a free Colab T4; `scripts/build_finetune_dataset.py` builds the dataset directly from the project's vector store; `scripts/evaluate_finetuned_model.py` runs an MCQ-accuracy + GPT-4-as-judge ablation against the GPT-4o baseline. Because Stage 3 is provider-agnostic (any OpenAI-compatible endpoint via `OPENAI_BASE_URL`), the adapter served via vLLM drops in with **zero code changes** — only a `config.yaml` edit. A formal ablation comparing baseline vs domain-fine-tuned on faithfulness, clinical correctness, and calibration is left as the headline future-work experiment.
+3. **Domain-specialised reasoner.** The current Stage 3 uses a general-purpose GPT-4o model grounded by RAG. A self-hostable, *domain-expert* alternative was prepared as part of this project: an 8B-parameter Llama-3.1-Instruct model QLoRA-fine-tuned on **2 098 grounded Q&A pairs** synthesised from the project's 1 049 textbook chunks in ChromaDB. The resulting LoRA adapter is publicly hosted at <https://huggingface.co/Afridi07/hematology-llama-3.1-8b-lora> (≈50 MB). The reproducible pipeline lives in this repository: `Notebooks/Domain_Expert_Finetune/domain_expert_finetune.ipynb` runs the QLoRA on a free Colab T4; `scripts/build_finetune_dataset.py` builds the dataset directly from the project's vector store; `scripts/evaluate_finetuned_model.py` is intended to support future MCQ-accuracy and GPT-4-as-judge comparisons against the GPT-4o baseline. Because Stage 3 is provider-agnostic, a self-hosted OpenAI-compatible endpoint can be selected through `OPENAI_BASE_URL` and `config.yaml`. A formal comparison of baseline vs domain-fine-tuned reasoning on faithfulness, clinical correctness, and calibration remains future work.
 4. **Whole-slide imaging extension.** Generalise from single-field smears to whole-slide images by tiling, running Stage 1 per tile, and aggregating WBC distributions over the whole slide.
 5. **Formal clinical evaluation.** A prospective study: 100 smears, three board-certified hematologists, two arms (with vs without the system), measure inter-rater agreement, time-to-report, and concordance with consensus reads.
 
@@ -933,11 +986,11 @@ Five avenues are most promising:
 
 ## 13. Conclusion
 
-This thesis has presented a complete, reproducible, three-stage multimodal pipeline for peripheral blood smear analysis, designed from the start around the principles of trust: explicit per-stage outputs, per-prediction uncertainty, visual saliency, grounded clinical reasoning, and an auditable agent trace. The pipeline achieves mAP@0.50 = 0.9849 on a TXL-PBC test split, 99.44 % top-1 accuracy on a PBC test split, and produces schema-valid, citation-grounded clinical interpretations in 100 % of held-out runs.
+This thesis has presented a reproducible, three-stage multimodal framework for peripheral blood-smear analysis, designed around trustworthy AI principles rather than raw automation alone. Stage 1 localises cells with a YOLOv8s detector, Stage 2 classifies WBC crops with EfficientNet-B0 while exposing uncertainty and Grad-CAM saliency, and Stage 3 converts the structured visual findings into citation-grounded clinical reasoning through a RAG-backed LangGraph ReAct agent. Under the evaluated benchmark conditions, the system achieves mAP@0.50 = 0.9849 on the TXL-PBC detection split and 99.44 % top-1 accuracy on the PBC classification split.
 
-The headline accuracies are *not* the contribution: per-cell classifiers at this level of accuracy already exist in the literature. The contribution is the demonstration that established components — a fine-tuned object detector, a Bayesian-approximation classifier, a textbook-grounded RAG layer, and a tool-using agent — can be composed into a system whose outputs are uncertain in a calibrated way, explained in a grounded way, and audited in a structured way, without sacrificing accuracy and at a latency budget that fits inside a typical interactive workflow.
+The central scientific finding is that a blood-smear assistant can be structured as an auditable chain of evidence: bounding boxes, per-cell labels, uncertainty estimates, saliency maps, retrieved textbook chunks, tool calls, citations, and deterministic expert-review flags. This architecture does not constitute clinical validation, and it does not remove the need for expert review. It does, however, demonstrate a practical route from high-performing computer-vision components toward a more transparent and reviewable medical-AI workflow.
 
-The system is released as supplementary material with this thesis. It is not a medical device. It is a research artefact and a starting point.
+The limitations are important. The datasets are curated and controlled; cross-hospital generalisation, calibration under domain shift, clinician evaluation, and formal comparison of reasoning strategies remain future work. For this reason the system should be understood as a research artefact and a reproducible foundation for further study, not as a medical device. Its contribution is the integration of interpretability, uncertainty awareness, grounding, and auditability into a single peripheral blood-smear analysis framework.
 
 ---
 
@@ -1127,6 +1180,9 @@ hybrid-multimodal-lab-assistant/
 │   └── Domain_Expert_Finetune/   # QLoRA fine-tune of LLaMA-3.1-8B
 │
 ├── figures/
+│   ├── stage1_detection/     # Extracted YOLOv8 notebook/result figures
+│   ├── stage2_classification/# Extracted EfficientNet notebook/result figures
+│   ├── stage3_reasoning/     # Extracted RAG/reasoning figures
 │   └── webapp/               # Frontend screenshots referenced from §6.9
 │
 ├── results/                  # Per-run stage*.json artefacts (gitignored)
@@ -1150,8 +1206,26 @@ A few notes on layout choices that matter for reproducibility:
   truth for every model path, threshold, prompt template, and agent budget.
   `backend/config.py` only holds web-server concerns.
 - **Curated artefacts vs. ephemera.** `figures/webapp/` is checked in
-  (referenced from this thesis); `figures/` otherwise, plus `results/` and
-  `logs/`, are gitignored runtime ephemera.
+  (referenced from this thesis). The stage-specific figure folders contain
+  extracted notebook outputs and result artefacts that can be reused in the
+  final PDF. `results/` and `logs/` remain runtime ephemera.
+
+---
+
+## Appendix E — Figure Recommendations for the Final PDF
+
+The following figures are realistic additions because they correspond to artefacts already present in the repository or extracted from the notebooks. No calibration plots, reliability diagrams, or architectural-comparison charts are recommended unless those experiments are actually performed.
+
+| Thesis location | Recommended figure | Available artefact |
+|---|---|---|
+| Chapter 3: system overview | High-level pipeline architecture | Existing architecture diagram in [§3.1](#31-high-level-architecture); can be redrawn for final typesetting |
+| Chapter 4: Stage 1 | YOLOv8 annotated training samples | `figures/stage1_detection/stage1_embedded_annotated_training_samples.png` |
+| Chapter 4: Stage 1 | Detection predictions and validation comparison | `figures/stage1_detection/stage1_results_predictions.png`, `stage1_results_val_groundtruth.jpg`, `stage1_results_val_predictions.jpg` |
+| Chapter 4: Stage 1 | Detection confusion matrix and training curves | `figures/stage1_detection/stage1_results_confusion_matrix.png`, `stage1_results_training_curves.png` |
+| Chapter 5: Stage 2 | Classification confusion matrix and prediction grid | `figures/stage2_classification/stage2_results_confusion_matrix.png`, `stage2_results_predictions_grid.png` |
+| Chapter 5: Stage 2 | MC-Dropout uncertainty example | `figures/stage2_classification/stage2_embedded_mc_dropout_uncertainty_demo.png` |
+| Chapter 6: Stage 3 | RAG/agent reasoning output | `figures/stage3_reasoning/stage3_results_pipeline_output.png` and screenshots under `figures/webapp/` |
+| Chapter 10 or 11 | Qualitative failure examples | Use real low-quality crops, Grad-CAM examples, or YOLO detections only if selected from actual runs |
 
 ---
 
