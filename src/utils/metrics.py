@@ -1,5 +1,5 @@
-"""
-Metrics calculation utilities for Blood Smear Domain Expert system.
+﻿"""
+Metrics calculation utilities for Hybrid Multimodal Lab Assistant system.
 
 Provides functions for computing uncertainty metrics, statistics, and evaluation metrics.
 """

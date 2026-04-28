@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint.
+﻿"""FastAPI application entrypoint.
 
 Run locally from the ``backend/`` directory:
 
@@ -32,16 +32,16 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    """Application factory — easy to import in tests."""
+    """Application factory â€” easy to import in tests."""
 
     settings = get_settings()
 
     app = FastAPI(
-        title="Blood Smear Domain Expert API",
+        title="Hybrid Multimodal Lab Assistant API",
         version=__version__,
         description=(
-            "HTTP interface for the multimodal pipeline: YOLOv8 detection → "
-            "EfficientNet WBC classification (with MC-Dropout uncertainty) → "
+            "HTTP interface for the multimodal pipeline: YOLOv8 detection â†’ "
+            "EfficientNet WBC classification (with MC-Dropout uncertainty) â†’ "
             "RAG-grounded GPT-4o clinical reasoning. Outputs are advisory only."
         ),
     )
@@ -61,7 +61,7 @@ def create_app() -> FastAPI:
     @app.get("/", include_in_schema=False)
     def root() -> dict:
         return {
-            "name": "Blood Smear Domain Expert API",
+            "name": "Hybrid Multimodal Lab Assistant API",
             "version": __version__,
             "docs": "/docs",
             "openapi": "/openapi.json",

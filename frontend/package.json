@@ -1,9 +1,9 @@
-{
+﻿{
   "name": "blood-smear-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "React UI for the Blood Smear Domain Expert pipeline.",
+  "description": "React UI for the Hybrid Multimodal Lab Assistant pipeline.",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",

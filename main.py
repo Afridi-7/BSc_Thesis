@@ -1,5 +1,5 @@
-"""
-Command-line interface for Blood Smear Domain Expert system.
+﻿"""
+Command-line interface for Hybrid Multimodal Lab Assistant system.
 
 Provides easy-to-use CLI for blood smear analysis.
 """
@@ -18,7 +18,7 @@ from src.utils.logging_config import setup_logging
 def main():
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Blood Smear Domain Expert - Clinical AI Assistant",
+        description="Hybrid Multimodal Lab Assistant - Clinical AI Assistant",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -99,7 +99,7 @@ For more information, visit: https://github.com/your-repo
     
     # Handle version
     if args.command == 'version':
-        print("Blood Smear Domain Expert v1.0.0")
+        print("Hybrid Multimodal Lab Assistant v1.0.0")
         print("A clinically safer AI assistant for peripheral blood smear interpretation")
         return 0
 
@@ -123,11 +123,11 @@ def test_config(config_path: str = None) -> int:
     try:
         print("Loading configuration...")
         config = load_config(config_path)
-        print("✓ Configuration loaded successfully")
+        print("âœ“ Configuration loaded successfully")
         
         print("\nValidating configuration...")
         validate_config(config)
-        print("✓ Configuration validation passed")
+        print("âœ“ Configuration validation passed")
         
         print("\nConfiguration summary:")
         print(f"  Detection confidence: {config.get('detection.confidence_threshold')}")
@@ -135,11 +135,11 @@ def test_config(config_path: str = None) -> int:
         print(f"  LLM model: {config.get('llm.model_name')}")
         print(f"  RAG top-k: {config.get('rag.retrieval.top_k')}")
         
-        print("\n✓ Configuration test passed!")
+        print("\nâœ“ Configuration test passed!")
         return 0
         
     except Exception as e:
-        print(f"\n❌ Configuration test failed: {e}", file=sys.stderr)
+        print(f"\nâŒ Configuration test failed: {e}", file=sys.stderr)
         return 1
 
 
@@ -187,16 +187,16 @@ def run_analysis(args) -> int:
         display_results(results)
         
         if not args.no_save:
-            print(f"\n✓ Results saved to: results/")
+            print(f"\nâœ“ Results saved to: results/")
         
-        print("\n✓ Analysis complete!\n")
+        print("\nâœ“ Analysis complete!\n")
         return 0
         
     except KeyboardInterrupt:
-        print("\n\n❌ Analysis interrupted by user", file=sys.stderr)
+        print("\n\nâŒ Analysis interrupted by user", file=sys.stderr)
         return 130
     except Exception as e:
-        print(f"\n❌ Analysis failed: {e}", file=sys.stderr)
+        print(f"\nâŒ Analysis failed: {e}", file=sys.stderr)
         logging.error("Analysis failed", exc_info=True)
         return 1
 
@@ -210,7 +210,7 @@ def display_results(results: dict) -> None:
     # Stage 1: Detection
     if 'stage1_detection' in results:
         detection = results['stage1_detection']
-        print("\n📊 STAGE 1: Cell Detection")
+        print("\nðŸ“Š STAGE 1: Cell Detection")
         print("-" * 60)
         
         counts = detection.get('total_counts', {})
@@ -218,12 +218,12 @@ def display_results(results: dict) -> None:
             print(f"  {cell_type}: {count}")
         
         if detection.get('skipped_paths'):
-            print(f"  ⚠️  Skipped {len(detection['skipped_paths'])} images")
+            print(f"  âš ï¸  Skipped {len(detection['skipped_paths'])} images")
     
     # Stage 2: Classification
     if 'stage2_classification' in results:
         classification = results['stage2_classification']
-        print("\n🔬 STAGE 2: WBC Classification")
+        print("\nðŸ”¬ STAGE 2: WBC Classification")
         print("-" * 60)
         
         if 'summary' in classification:
@@ -242,12 +242,12 @@ def display_results(results: dict) -> None:
             print(f"    Flagged for review: {flagged_count}/{unc.get('total_samples', 0)}")
             
             if flagged_count > 0:
-                print(f"    ⚠️  {unc['flagged_percentage']:.1f}% require expert review")
+                print(f"    âš ï¸  {unc['flagged_percentage']:.1f}% require expert review")
     
     # Stage 3: Clinical Reasoning
     if 'stage3_reasoning' in results:
         reasoning = results['stage3_reasoning']
-        print("\n🏥 STAGE 3: Clinical Reasoning")
+        print("\nðŸ¥ STAGE 3: Clinical Reasoning")
         print("-" * 60)
         
         print(f"\n  {reasoning.get('clinical_interpretation', 'N/A')}")
@@ -255,25 +255,25 @@ def display_results(results: dict) -> None:
         if reasoning.get('key_findings'):
             print("\n  Key Findings:")
             for finding in reasoning['key_findings']:
-                print(f"    • {finding}")
+                print(f"    â€¢ {finding}")
         
         if reasoning.get('differential_diagnoses'):
             print("\n  Differential Diagnoses:")
             for dx in reasoning['differential_diagnoses']:
-                print(f"    • {dx}")
+                print(f"    â€¢ {dx}")
         
         if reasoning.get('recommendations'):
             print("\n  Recommendations:")
             for rec in reasoning['recommendations']:
-                print(f"    • {rec}")
+                print(f"    â€¢ {rec}")
         
         if reasoning.get('safety_flags'):
-            print("\n  ⚠️  Safety Flags:")
+            print("\n  âš ï¸  Safety Flags:")
             for flag in reasoning['safety_flags']:
-                print(f"    • {flag}")
+                print(f"    â€¢ {flag}")
         
         if reasoning.get('requires_expert_review'):
-            print("\n  🚨 EXPERT REVIEW REQUIRED")
+            print("\n  ðŸš¨ EXPERT REVIEW REQUIRED")
     
     # Metadata
     if 'metadata' in results:
@@ -290,9 +290,9 @@ def run_smoke_test(config_path: str = None) -> int:
     try:
         config = load_config(config_path)
         validate_config(config)
-        print("✓ Config load and validation passed")
+        print("âœ“ Config load and validation passed")
     except Exception as exc:
-        print(f"❌ Config check failed: {exc}", file=sys.stderr)
+        print(f"âŒ Config check failed: {exc}", file=sys.stderr)
         return 1
 
     failures = []
@@ -304,10 +304,10 @@ def run_smoke_test(config_path: str = None) -> int:
     ]:
         try:
             model_path = get_model_path(config, model_key)
-            print(f"✓ {label} found: {model_path}")
+            print(f"âœ“ {label} found: {model_path}")
         except Exception as exc:
             failures.append(f"{label} missing")
-            print(f"✗ {label} check failed: {exc}")
+            print(f"âœ— {label} check failed: {exc}")
             print("  Action: place required .pt files in models/ or set THESIS_MODELS_DIR")
 
     stage3_enabled = config.get('pipeline.enable_stage3', True)
@@ -315,38 +315,38 @@ def run_smoke_test(config_path: str = None) -> int:
 
     if stage3_enabled:
         if os.getenv(api_key_var):
-            print(f"✓ API key variable set: {api_key_var}")
+            print(f"âœ“ API key variable set: {api_key_var}")
         else:
-            print(f"⚠ API key variable not set: {api_key_var}")
+            print(f"âš  API key variable not set: {api_key_var}")
             print("  Action: create .env from .env.example and set OPENAI_API_KEY before Stage 3")
 
         pdf_dir = Path(config.get('rag.pdf_directory', 'LLM_RAG_Pipline/pdfs'))
         pdf_sources = config.get('rag.pdf_sources', [])
 
         if pdf_dir.exists() and pdf_dir.is_dir():
-            print(f"✓ RAG PDF directory found: {pdf_dir}")
+            print(f"âœ“ RAG PDF directory found: {pdf_dir}")
         else:
             failures.append("RAG PDF directory missing")
-            print(f"✗ RAG PDF directory not found: {pdf_dir}")
+            print(f"âœ— RAG PDF directory not found: {pdf_dir}")
             print("  Action: create the directory and add PDFs listed in config.yaml rag.pdf_sources")
             print("  Alternative: set pipeline.enable_stage3=false to run Stage 1/2 only")
 
         missing_pdfs = [name for name in pdf_sources if not (pdf_dir / name).exists()]
         if missing_pdfs:
             failures.append("RAG PDF files missing")
-            print(f"✗ Missing RAG PDF files: {missing_pdfs}")
+            print(f"âœ— Missing RAG PDF files: {missing_pdfs}")
             print("  Action: add these files under the configured rag.pdf_directory")
             print("  Alternative: set rag.pdf_missing_strategy='warn' for partial retrieval")
         else:
-            print(f"✓ All configured RAG PDFs found ({len(pdf_sources)})")
+            print(f"âœ“ All configured RAG PDFs found ({len(pdf_sources)})")
     else:
-        print("✓ Stage 3 is disabled (pipeline.enable_stage3=false); skipping API key and PDF checks")
+        print("âœ“ Stage 3 is disabled (pipeline.enable_stage3=false); skipping API key and PDF checks")
 
     if failures:
-        print(f"❌ Smoke test completed with {len(failures)} critical issue(s)", file=sys.stderr)
+        print(f"âŒ Smoke test completed with {len(failures)} critical issue(s)", file=sys.stderr)
         return 1
 
-    print("✓ Smoke test complete")
+    print("âœ“ Smoke test complete")
     return 0
 
 

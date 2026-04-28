@@ -1,5 +1,5 @@
-"""
-Blood Smear Domain Expert System
+﻿"""
+Hybrid Multimodal Lab Assistant System
 
 A clinically safer AI assistant for peripheral blood smear interpretation combining:
 1. YOLOv8 detection for cell localization

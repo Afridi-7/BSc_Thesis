@@ -1,5 +1,5 @@
-"""
-Logging configuration for Blood Smear Domain Expert system.
+﻿"""
+Logging configuration for Hybrid Multimodal Lab Assistant system.
 
 Provides consistent logging across all modules with file and console handlers.
 """

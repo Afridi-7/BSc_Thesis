@@ -1,7 +1,7 @@
-"""
-Main pipeline orchestrator for Blood Smear Domain Expert system.
+﻿"""
+Main pipeline orchestrator for Hybrid Multimodal Lab Assistant system.
 
-Coordinates all three stages: Detection → Classification → RAG Reasoning
+Coordinates all three stages: Detection â†’ Classification â†’ RAG Reasoning
 """
 
 import logging
@@ -79,7 +79,7 @@ class BloodSmearPipeline:
             index_stats = self.retriever.build_index()
             logger.info(f"Index built: {index_stats['total_chunks']} chunks, type={index_stats['index_type']}")
 
-            # Optional ReAct agent (lazy import — only if requested).
+            # Optional ReAct agent (lazy import â€” only if requested).
             self.agent = None
             if self.reasoning_mode == 'agent':
                 from src.rag.agent import ClinicalReasoningAgent
@@ -90,7 +90,7 @@ class BloodSmearPipeline:
             self.reasoner = None
             self.agent = None
         
-        # Output directories — resolve relative paths against the repo root so
+        # Output directories â€” resolve relative paths against the repo root so
         # results/figures land in the canonical top-level folders regardless of
         # the process cwd (e.g. uvicorn started from backend/).
         _repo_root = Path(__file__).resolve().parent.parent
@@ -171,7 +171,7 @@ class BloodSmearPipeline:
                 detection_results = self.detector.detect(image_input)
                 results['stage1_detection'] = detection_results
                 
-                logger.info(f"✓ Detected cells: {detection_results['total_counts']}")
+                logger.info(f"âœ“ Detected cells: {detection_results['total_counts']}")
                 
                 if self.save_intermediate:
                     self._save_json(detection_results, 'stage1_detection.json')
@@ -209,7 +209,7 @@ class BloodSmearPipeline:
                             'images_processed': len(detection_results['per_image'])
                         }
 
-                        logger.info(f"✓ Classified {len(all_wbc_crops)} WBCs across {len(detection_results['per_image'])} image(s)")
+                        logger.info(f"âœ“ Classified {len(all_wbc_crops)} WBCs across {len(detection_results['per_image'])} image(s)")
                         logger.info(f"  Flagged for review: {uncertainty_summary.get('flagged_count', 0)}")
 
                         if self.save_intermediate:
@@ -287,7 +287,7 @@ class BloodSmearPipeline:
                     ]
                 results['stage3_reasoning'] = reasoning_results
                 
-                logger.info(f"✓ Generated clinical reasoning")
+                logger.info(f"âœ“ Generated clinical reasoning")
                 logger.info(f"  Safety flags: {reasoning_results.get('safety_flags', [])}")
                 logger.info(f"  Expert review required: {reasoning_results.get('requires_expert_review', False)}")
                 
@@ -304,7 +304,7 @@ class BloodSmearPipeline:
             results['metadata']['execution_time_seconds'] = (end_time - start_time).total_seconds()
             
             logger.info("=" * 60)
-            logger.info("✓ Pipeline completed successfully")
+            logger.info("âœ“ Pipeline completed successfully")
             logger.info(f"  Total time: {results['metadata']['execution_time_seconds']:.2f}s")
             logger.info("=" * 60)
             

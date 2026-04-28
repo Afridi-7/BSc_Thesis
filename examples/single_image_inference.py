@@ -1,5 +1,5 @@
-"""
-Example: Single image inference with Blood Smear Domain Expert.
+﻿"""
+Example: Single image inference with Hybrid Multimodal Lab Assistant.
 
 This example shows how to analyze a single blood smear image.
 """
@@ -50,13 +50,13 @@ def main():
         print(f"  {reasoning['clinical_interpretation']}")
         
         if reasoning.get('requires_expert_review'):
-            print("\n⚠️  EXPERT REVIEW REQUIRED")
+            print("\nâš ï¸  EXPERT REVIEW REQUIRED")
         
         if reasoning.get('safety_flags'):
             print(f"\nSafety Flags: {', '.join(reasoning['safety_flags'])}")
     
-    print(f"\n✓ Results saved to: results/")
-    print(f"✓ Execution time: {results['metadata']['execution_time_seconds']:.2f}s")
+    print(f"\nâœ“ Results saved to: results/")
+    print(f"âœ“ Execution time: {results['metadata']['execution_time_seconds']:.2f}s")
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
-# ============================================================================
-# Blood Smear Domain Expert — one-click launcher
+﻿# ============================================================================
+# Hybrid Multimodal Lab Assistant â€” one-click launcher
 # ============================================================================
 # Starts the FastAPI backend (port 8767) and the Vite frontend (port 5173) in
 # two separate PowerShell windows so you can see logs from each. Idempotent:
@@ -78,7 +78,7 @@ Start-Process "http://localhost:5173"
 
 Write-Host ""
 Write-Host "=========================================================" -ForegroundColor Green
-Write-Host " Blood Smear Domain Expert is running." -ForegroundColor Green
+Write-Host " Hybrid Multimodal Lab Assistant is running." -ForegroundColor Green
 Write-Host "   Frontend : http://localhost:5173" -ForegroundColor Green
 Write-Host "   Backend  : http://127.0.0.1:8767  (Swagger: /docs)" -ForegroundColor Green
 Write-Host " To stop: close the two new PowerShell windows." -ForegroundColor Green

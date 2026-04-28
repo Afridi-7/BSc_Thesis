@@ -1,4 +1,4 @@
-# Blood Smear Domain Expert - Configuration
+﻿# Hybrid Multimodal Lab Assistant - Configuration
 # All configurable parameters for the blood smear analysis pipeline
 
 # ============================================================================
@@ -77,8 +77,8 @@ classification:
 # REASONING (Stage 3 mode selection)
 # ============================================================================
 reasoning:
-  # 'linear' — single-shot LLM call grounded by retrieved context (default).
-  # 'agent'  — LangChain ReAct agent that iteratively calls tools
+  # 'linear' â€” single-shot LLM call grounded by retrieved context (default).
+  # 'agent'  â€” LangChain ReAct agent that iteratively calls tools
   #            (knowledge_base, lab_reference_ranges, differential_review,
   #             uncertainty_summary) before producing the final report.
   mode: "agent"

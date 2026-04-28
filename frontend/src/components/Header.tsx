@@ -16,7 +16,7 @@ export default function Header({ health, healthError }: Props) {
   return (
     <header className="app-header">
       <div>
-        <h1>Blood Smear Domain Expert</h1>
+        <h1>Hybrid Multimodal Lab Assistant</h1>
         <div className="tagline">
           YOLOv8 detection → EfficientNet (MC-Dropout) → RAG-grounded clinical reasoning
         </div>

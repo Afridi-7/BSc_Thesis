@@ -1,4 +1,4 @@
-"""Configuration management for Blood Smear Domain Expert."""
+﻿"""Configuration management for Hybrid Multimodal Lab Assistant."""
 
 from src.config.config_loader import load_config, Config
 
