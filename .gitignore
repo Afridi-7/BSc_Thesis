@@ -71,8 +71,10 @@ models/
 data/
 datasets/
 
-# Results and outputs
-results/
+# Results and outputs (top-level run artefacts only — keep notebook result figures)
+/results/
+!Notebooks/**/results/
+!Notebooks/**/results/**
 # Ignore everything under figures/ except the curated webapp screenshots that
 # are referenced from the thesis (Git won't recurse into a fully-ignored
 # directory, so we ignore the *contents* and re-include what we need).

@@ -1,6 +1,4 @@
-# Trustworthy Multimodal AI for Peripheral Blood Smear Analysis
-
-## A Three-Stage Pipeline Combining Object Detection, Uncertainty-Aware Classification, and Retrieval-Augmented Reasoning
+# A Hybrid Multimodal Lab Assistant: Blood Image Classification Combined with Domain-Expert LLM Reasoning and RAG
 
 ---
 
