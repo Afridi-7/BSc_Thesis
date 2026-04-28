@@ -26,7 +26,7 @@ Manual examination of peripheral blood smears under a microscope remains the dia
 
 This thesis presents a complete three-stage pipeline that addresses these gaps. **Stage 1** uses a YOLOv8s detector, fine-tuned on the TXL-PBC dataset (1,260 annotated smears), to localise white blood cells (WBC), red blood cells (RBC), and platelets at *mean Average Precision @ 0.50 IoU = 0.9849* on a held-out test split. **Stage 2** uses an EfficientNet-B0 classifier, fine-tuned on the eight-class PBC dataset of Acevedo *et al.*, to assign WBC subtypes at *99.44 % top-1 test accuracy* over 3,419 samples. Crucially, Stage 2 augments every prediction with **Monte Carlo Dropout** uncertainty estimates (entropy, predictive variance, and a low/medium/high reliability bucket) and **Grad-CAM** saliency maps, so that a clinician can both quantify and visually verify model confidence. **Stage 3** is a Retrieval-Augmented Generation (RAG) layer: 1,049 chunks from two open hematology textbooks are embedded with `all-MiniLM-L6-v2` into a persistent ChromaDB store, and queried by a LangChain ReAct agent built on GPT-4o. The agent has access to five purpose-built tools (knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts) and produces a JSON-structured clinical interpretation with grounded citations and an explicit `requires_expert_review` flag.
 
-The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 13 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, and uncertainty-schema correctness. The contribution is not a new model architecture but a **demonstration that established components can be composed into a transparent, uncertainty-aware, citation-grounded multimodal system**, with the explainability properties that current end-to-end blood-smear classifiers lack.
+The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 27 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, uncertainty-schema correctness, and the tabular CBC multimodal analyser. The contribution is not a new model architecture but a **demonstration that established components can be composed into a transparent, uncertainty-aware, citation-grounded multimodal system**, with the explainability properties that current end-to-end blood-smear classifiers lack.
 
 **Keywords:** medical image analysis, peripheral blood smear, object detection, YOLOv8, fine-grained classification, EfficientNet, Monte Carlo Dropout, Grad-CAM, retrieval-augmented generation, large language models, LangChain, ReAct agent, trustworthy AI, clinical decision support.
 
@@ -316,6 +316,22 @@ Three safety-relevant signals propagate through the pipeline and ultimately driv
 3. **Stage-3 grounding**: any LLM claim that cannot be cited from a retrieved chunk is rejected by the post-processing layer and triggers a `unverified_claim` safety flag.
 
 The `requires_expert_review` Boolean is a deterministic OR over these signals — it is never produced by the LLM directly.
+
+### 3.7 Multimodal Inputs: CBC Cross-Modal Reasoning
+
+The thesis title commits to a *multimodal* assistant. The image pathway described above is the primary modality, but Stage 3 also accepts a **second, tabular modality** — a structured Complete Blood Count (CBC). This is implemented in `src/multimodal/cbc_analyzer.py` and is exposed both through the Python API (`BloodSmearPipeline.analyze(image, cbc=...)`) and the HTTP route (`POST /api/analyze` with an optional `cbc` form field carrying a JSON object).
+
+Given a CBC dictionary (any subset of WBC, RBC, hemoglobin, hematocrit, MCV, platelets, absolute differential counts, plus sex), the analyser:
+
+1. Maps each analyte to a published adult reference range (sex-aware for hemoglobin, hematocrit, RBC),
+2. Buckets each deviation into `mild` / `moderate` / `severe` based on its distance from the reference envelope,
+3. Emits a labelled finding (`leukocytosis`, `anaemia`, `thrombocytopenia`, `microcytosis`, …),
+4. Renders the findings into the Stage-3 prompt under a dedicated **CBC Laboratory Findings** section, and
+5. Injects the abnormal labels into the RAG retrieval query so that the textbook context returned at Stage 3 is biased toward the relevant differentials.
+
+The system prompt is augmented with an explicit cross-modal rule that requires the reasoner to reconcile or contrast image-derived findings against CBC numerical findings (e.g. *image shows neutrophil predominance* + *CBC reports leukocytosis* → consistent with absolute neutrophilia). When CBC is omitted, the analyser is bypassed and the metadata block records `modalities: ["image"]`; when present, `modalities: ["image","tabular_cbc"]`. Unit tests in `tests/test_cbc_analyzer.py` cover the severity buckets, sex-aware ranges, alias parsing, hematocrit auto-normalisation, and prompt rendering.
+
+This layer is the genuine basis for the *multimodal* claim in the title and turns Stage 3 into a fusion node rather than a single-input reasoner.
 
 ---
 
@@ -712,7 +728,7 @@ Three mechanisms ensure reproducibility:
 
 ### 7.5 Test suite
 
-Thirteen Pytest cases (`tests/`) cover:
+Twenty-seven Pytest cases (`tests/`) cover:
 
 | Test file | Concern |
 |---|---|
@@ -722,8 +738,9 @@ Thirteen Pytest cases (`tests/`) cover:
 | `test_reasoner_parsing.py` | LLM JSON parser handles malformed and partial outputs. |
 | `test_retriever_hybrid_mode.py` | Retriever fallback when ChromaDB absent / when web augmentation fails. |
 | `test_uncertainty_schema.py` | Stage-2 output structure is well-formed and bucket thresholds are consistent. |
+| `test_cbc_analyzer.py` | Tabular CBC analyser: sex-aware ranges, severity buckets, alias keys, custom-range overrides, prompt formatting. |
 
-All 13 tests pass in CI on a clean checkout.
+All 27 tests pass in CI on a clean checkout.
 
 ---
 
@@ -840,7 +857,7 @@ The four research questions posed in [§1.3](#13-research-questions) can each be
 - **RQ1 (detection)**: YOLOv8s fine-tuned on a 1,260-image dataset reaches mAP@0.50 = 0.9849 — clinically meaningful in the sense that it correctly localises the cells of interest in essentially every test image, with WBC recall of 1.00.
 - **RQ2 (classification with uncertainty)**: EfficientNet-B0 + MC-Dropout + Grad-CAM achieves 99.44 % top-1 accuracy, while bucketing approximately 1–2 % of cells into `medium`/`high` uncertainty — a rate that closely matches the empirical error rate, demonstrating that the uncertainty signal is well-correlated with actual mistakes.
 - **RQ3 (agentic clinical reasoning)**: A LangChain ReAct agent over GPT-4o, equipped with five domain-specific tools, produces JSON-structured interpretations with grounded citations and a deterministic `requires_expert_review` flag, validated on 50 held-out samples with 100 % schema-validity rate.
-- **RQ4 (deployable artefact)**: The system is delivered as a single repository with one `requirements.txt`, one `config.yaml`, one `.env`, a 13-test pytest suite, and a frontend that runs in the browser. A user with Python and Node installed can be running the full pipeline in under five minutes.
+- **RQ4 (deployable artefact)**: The system is delivered as a single repository with one `requirements.txt`, one `config.yaml`, one `.env`, a 27-test pytest suite, and a frontend that runs in the browser. A user with Python and Node installed can be running the full pipeline in under five minutes.
 
 ### 10.2 The value of staging
 
@@ -895,7 +912,7 @@ Five avenues are most promising:
 
 1. **Multi-source generalisation.** Re-evaluate Stages 1 and 2 on a smear corpus from a different institution / microscope / stain protocol (e.g. the LISC dataset or a private hospital partnership). Quantify accuracy drop and recover with domain adaptation.
 2. **Calibration study.** Compare MC-Dropout (T = 20) against deep ensembles (N = 5) and Laplace approximation on Stage 2, reporting expected calibration error, Brier score, and AUROC of uncertainty as an error predictor.
-3. **Self-hosted LLM.** Replace GPT-4o with a self-hostable open-weight model (Llama-3-70B-Instruct, Qwen2-72B) on a single A100. Benchmark schema-validity rate, citation accuracy, and clinician-rated interpretation quality.
+3. **Domain-specialised reasoner.** The current Stage 3 uses a general-purpose GPT-4o grounded by RAG. A self-hostable, *domain-expert* alternative is provided in this repository as a complete, runnable recipe: `Notebooks/Domain_Expert_Finetune/` contains a Colab notebook that QLoRA-fine-tunes Llama-3.1-8B on (a) ~2 000 synthetic Q&A pairs generated by GPT-4o from the existing 1 049 textbook chunks in the project's ChromaDB, (b) a hematology-keyword subset of MedQA-USMLE, and (c) hand-written gold examples for refusal, citation format, and cross-modal CBC reasoning. The companion `scripts/build_finetune_dataset.py` builds the supervised dataset directly from the project's vector store; `scripts/evaluate_finetuned_model.py` runs an MCQ-accuracy + GPT-4-as-judge ablation against the GPT-4o baseline. Because Stage 3 is provider-agnostic (any OpenAI-compatible endpoint via `OPENAI_BASE_URL`), the resulting LoRA adapter served via vLLM drops in with zero code changes — only a `config.yaml` edit. A formal ablation comparing baseline vs domain-fine-tuned on faithfulness, clinical correctness, and calibration is left as the headline future-work experiment.
 4. **Whole-slide imaging extension.** Generalise from single-field smears to whole-slide images by tiling, running Stage 1 per tile, and aggregating WBC distributions over the whole slide.
 5. **Formal clinical evaluation.** A prospective study: 100 smears, three board-certified hematologists, two arms (with vs without the system), measure inter-rater agreement, time-to-report, and concordance with consensus reads.
 
@@ -1038,7 +1055,7 @@ Following the *Machine Learning Reproducibility Checklist* (Pineau *et al.* 2020
 ## Appendix D — Repository Layout
 
 ```
-BSc_Thesis/
+hybrid-multimodal-lab-assistant/
 ├── main.py                   # CLI entry point
 ├── config.yaml               # Single source of truth
 ├── requirements.txt          # Pinned Python deps
@@ -1051,6 +1068,7 @@ BSc_Thesis/
 │   ├── config/
 │   ├── detection/
 │   ├── classification/
+│   ├── multimodal/           # Tabular CBC analyser (optional second modality)
 │   ├── rag/
 │   └── utils/
 │
@@ -1072,11 +1090,13 @@ BSc_Thesis/
 │   ├── pdfs/                 # Stage-3 corpus
 │   └── chroma_db/            # Persisted vector store
 ├── examples/                 # Demo scripts
-├── tests/                    # 13 pytest cases
+├── scripts/                  # Dev utilities (diag_yolo, fine-tune builders)
+├── tests/                    # 27 pytest cases
 ├── Notebooks/                # Training + evaluation notebooks
 │   ├── YOLOv8_detection/
 │   ├── Efficientnet_classification/
-│   └── LLM_RAG_Pipline/
+│   ├── LLM_RAG_Pipline/
+│   └── Domain_Expert_Finetune/   # QLoRA recipe for a self-hosted domain LLM
 ├── results/                  # Per-run JSON artefacts
 └── logs/                     # Timestamped log files
 ```

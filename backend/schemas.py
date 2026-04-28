@@ -80,6 +80,13 @@ class AnalyzeResponse(BaseModel):
     stage1_detection: Optional[DetectionResult] = None
     stage2_classification: Optional[ClassificationResult] = None
     stage3_reasoning: Optional[ReasoningResult] = None
+    cbc_report: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Tabular CBC modality findings (only present when CBC was supplied). "
+            "Shape: {findings: [...], abnormal_count: int, has_abnormalities: bool, sex: str|None}."
+        ),
+    )
     annotated_image_base64: Optional[str] = Field(
         default=None,
         description="PNG bytes (base64) with detection boxes drawn over the input.",

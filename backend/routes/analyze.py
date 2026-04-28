@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
@@ -62,8 +63,20 @@ async def analyze(
     image: UploadFile = File(..., description="Blood smear image (jpg/png/bmp/tif)"),
     save_results: bool = Form(False, description="Persist stage outputs under results/"),
     include_overlay: bool = Form(True, description="Return base64 PNG with detection boxes"),
+    cbc: Optional[str] = Form(
+        None,
+        description=(
+            "Optional CBC values as JSON (second input modality). "
+            'Example: {"wbc":12.3,"hemoglobin":9.8,"platelets":180,"sex":"F"}'
+        ),
+    ),
 ) -> AnalyzeResponse:
-    """Run the full Detection → Classification → RAG-Reasoning pipeline."""
+    """Run the full Detection → Classification → RAG-Reasoning pipeline.
+
+    Multimodal: if ``cbc`` JSON is provided it is fused with image-derived
+    findings before Stage 3 reasoning, and the parsed CBC report is returned
+    under ``cbc_report``.
+    """
 
     settings = get_settings()
 
@@ -73,13 +86,31 @@ async def analyze(
             detail=f"Unsupported content type: {image.content_type}",
         )
 
+    cbc_payload: Optional[dict[str, Any]] = None
+    if cbc:
+        try:
+            cbc_payload = json.loads(cbc)
+            if not isinstance(cbc_payload, dict):
+                raise ValueError("cbc must be a JSON object")
+        except (ValueError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid CBC JSON: {exc}") from exc
+
     pipeline = get_pipeline()
 
     with tempfile.TemporaryDirectory(prefix="bsde_upload_") as tmpdir:
         tmp_path = _save_upload_to_temp(image, Path(tmpdir))
-        logger.info("Analyzing upload (%d bytes) -> %s", tmp_path.stat().st_size, tmp_path.name)
+        logger.info(
+            "Analyzing upload (%d bytes, cbc=%s) -> %s",
+            tmp_path.stat().st_size,
+            "yes" if cbc_payload else "no",
+            tmp_path.name,
+        )
 
-        results = pipeline.analyze(str(tmp_path), save_results=save_results)
+        results = pipeline.analyze(
+            str(tmp_path),
+            save_results=save_results,
+            cbc=cbc_payload,
+        )
 
         overlay_b64: Optional[str] = None
         if include_overlay:
@@ -101,5 +132,6 @@ async def analyze(
         stage1_detection=safe_results.get("stage1_detection"),
         stage2_classification=safe_results.get("stage2_classification"),
         stage3_reasoning=safe_results.get("stage3_reasoning"),
+        cbc_report=safe_results.get("cbc_report"),
         annotated_image_base64=overlay_b64,
     )

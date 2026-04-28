@@ -139,6 +139,7 @@ CRITICAL SAFETY REQUIREMENTS:
 4. Do NOT make definitive diagnoses - provide differential diagnoses and recommend expert review
 5. Highlight any uncertainty flags from the vision analysis
 6. Be conservative and prioritize patient safety
+7. CROSS-MODAL REASONING: when CBC laboratory findings are provided alongside the image-derived WBC differential, explicitly reconcile or contrast the two modalities (e.g. "image shows neutrophil predominance AND CBC reports leukocytosis → consistent with absolute neutrophilia"). Note any discordance.
 
 OUTPUT FORMAT:
 Provide your response as a JSON object with these fields:
@@ -199,7 +200,27 @@ Please provide your clinical interpretation following the safety requirements an
                 var = stats['variance'].get(cell_type, 0)
                 lines.append(f"  - {cell_type}: {mean:.1f} ± {var:.1f}")
             lines.append("")
-        
+
+        # Multimodal: CBC tabular findings
+        if 'cbc_report' in vision_summary and vision_summary['cbc_report']:
+            cbc = vision_summary['cbc_report']
+            findings = cbc.get('findings', [])
+            if findings:
+                lines.append("**CBC Laboratory Findings (tabular modality):**")
+                if cbc.get('sex'):
+                    lines.append(f"  - Sex: {cbc['sex']}")
+                lines.append(
+                    f"  - Abnormal analytes: {cbc.get('abnormal_count', 0)} of {len(findings)}"
+                )
+                for f in findings:
+                    marker = "⚠️ " if f.get('direction') != 'normal' else "  "
+                    ref = f.get('reference_range', [None, None])
+                    lines.append(
+                        f"{marker}{f.get('analyte')} = {f.get('value')} {f.get('unit', '')} "
+                        f"(ref {ref[0]}–{ref[1]}) → {f.get('label')} ({f.get('severity')})"
+                    )
+                lines.append("")
+
         return "\n".join(lines)
     
     def _format_uncertainty_summary(self, uncertainty_summary: Dict[str, Any]) -> str:

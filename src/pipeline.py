@@ -16,6 +16,7 @@ from src.detection.detector import CellDetector
 from src.classification.classifier import WBCClassifier
 from src.rag.retriever import ClinicalRetriever
 from src.rag.llm_reasoner import ClinicalReasoner
+from src.multimodal.cbc_analyzer import CBCInput, CBCReport, analyze_cbc
 from src.utils.logging_config import setup_logging
 from src.utils.pipeline_helpers import collect_wbc_crops
 from src.utils.reproducibility import set_global_seeds
@@ -100,7 +101,8 @@ class BloodSmearPipeline:
     def analyze(
         self,
         image_input: Union[str, Path, List[Union[str, Path]]],
-        save_results: bool = True
+        save_results: bool = True,
+        cbc: Optional[Union[CBCInput, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Run complete analysis pipeline on blood smear image(s).
@@ -133,6 +135,24 @@ class BloodSmearPipeline:
                 'pipeline_version': '1.0.0'
             }
         }
+
+        # Multimodal: analyse CBC tabular input (if provided) before Stage 3.
+        cbc_report: Optional[CBCReport] = None
+        if cbc is not None:
+            try:
+                cbc_report = analyze_cbc(cbc)
+                results['cbc_report'] = cbc_report.to_dict()
+                results['metadata']['modalities'] = ['image', 'tabular_cbc']
+                logger.info(
+                    "CBC modality: %d findings (%d abnormal)",
+                    len(cbc_report.findings),
+                    cbc_report.abnormal_count,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("CBC analysis failed, continuing without it: %s", exc)
+                cbc_report = None
+        else:
+            results['metadata']['modalities'] = ['image']
         
         try:
             # Stage 1: Cell Detection
@@ -212,8 +232,10 @@ class BloodSmearPipeline:
                 logger.info("STAGE 3: Clinical Reasoning (RAG + LLM)")
                 logger.info("=" * 60)
                 
-                # Build vision summary
+                # Build vision summary (image-derived findings + optional CBC)
                 vision_summary = self._build_vision_summary(results)
+                if cbc_report is not None:
+                    vision_summary['cbc_report'] = cbc_report.to_dict()
                 
                 # Build query from vision results
                 query = self._build_rag_query(vision_summary)
@@ -381,6 +403,20 @@ class BloodSmearPipeline:
             if flagged and total:
                 observations.append(
                     f"{flagged} of {total} WBC classifications flagged with high model uncertainty"
+                )
+
+        # Multimodal: include any abnormal CBC labels in the retrieval query so
+        # we pull textbook context for *both* the image findings and the lab.
+        if 'cbc_report' in vision_summary:
+            cbc = vision_summary['cbc_report'] or {}
+            abnormal_labels = [
+                f.get('label')
+                for f in cbc.get('findings', [])
+                if f.get('direction') != 'normal' and f.get('label')
+            ]
+            if abnormal_labels:
+                observations.append(
+                    "Concurrent CBC abnormalities: " + ", ".join(sorted(set(abnormal_labels)))
                 )
 
         if not observations:

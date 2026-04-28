@@ -38,6 +38,8 @@ Given a peripheral blood smear photomicrograph, the system answers three questio
 | **2. Classification** | *What WBC subtype is each one, and how confident are we?* | EfficientNet-B0 + Monte Carlo Dropout + Grad-CAM | Per-cell class, entropy, margin, saliency heatmap |
 | **3. Reasoning** | *What does this mean clinically, and what should be reviewed?* | RAG over hematology textbooks + GPT-4o agent (LangChain ReAct) | Grounded interpretation, differential diagnosis, safety flags |
 
+An **optional tabular CBC modality** ([src/multimodal/cbc_analyzer.py](src/multimodal/cbc_analyzer.py)) lets the caller submit numeric blood-count values alongside the smear; abnormalities (sex-aware reference ranges, severity buckets) are folded into the Stage-3 prompt so the reasoner can correlate image findings with lab values.
+
 The whole chain is **configuration-driven** ([config.yaml](config.yaml)) and **reproducible** (every run emits structured JSON with metadata).
 
 ---
@@ -134,7 +136,7 @@ Inference does **not** require the training datasets — the checkpoints under `
 ## Repository layout
 
 ```
-BSc_Thesis/
+hybrid-multimodal-lab-assistant/
 ├── main.py                 # CLI entrypoint:   analyze, smoke-test, test-config
 ├── config.yaml             # Single source of truth for all runtime parameters
 ├── requirements.txt        # Python deps (one venv for the whole project)
@@ -146,6 +148,7 @@ BSc_Thesis/
 │   ├── config/             # YAML + .env loader, validation
 │   ├── detection/          # YOLOv8 wrapper
 │   ├── classification/     # EfficientNet, MC-Dropout, Grad-CAM
+│   ├── multimodal/         # Tabular CBC analyser (optional second modality)
 │   ├── rag/                # PDF processor, retriever, reasoner, ReAct agent
 │   └── utils/              # Logging, validators, metrics, helpers
 │
@@ -174,9 +177,13 @@ BSc_Thesis/
 │   ├── pdfs/               # Stage-3 hematology textbooks
 │   └── chroma_db/          # Persisted vector store (built on first run)
 ├── examples/               # Scripted demos + sample_images/
-├── scripts/                # Dev utilities (currently: diag_yolo.py)
-├── tests/                  # pytest suite (13 tests)
+├── scripts/                # Dev utilities (diag_yolo.py + fine-tune dataset/eval scripts)
+├── tests/                  # pytest suite (27 tests)
 ├── Notebooks/              # Training + evaluation notebooks (not used at inference)
+│   ├── YOLOv8_detection/
+│   ├── Efficientnet_classification/
+│   ├── LLM_RAG_Pipline/
+│   └── Domain_Expert_Finetune/   # QLoRA recipe for a self-hosted domain LLM
 ├── results/                # Per-run JSON artefacts (gitignored)
 ├── logs/                   # Timestamped log files (gitignored)
 └── figures/                # Optional matplotlib outputs
@@ -218,7 +225,7 @@ A separate `backend/.env` or `backend/requirements.txt` would mean the CLI and t
 
 ```powershell
 # 1) Open the repo
-cd C:\Users\qkafr\Desktop\BSc_Thesis
+cd C:\Users\qkafr\Desktop\hybrid-multimodal-lab-assistant
 
 # 2) Create the Python virtual environment (one-time, repo-root only)
 py -3.10 -m venv .venv
@@ -273,7 +280,7 @@ You'll typically need **two terminals**: one for the backend, one for the fronte
 ### Terminal 1 — backend (FastAPI on :8000)
 
 ```powershell
-cd C:\Users\qkafr\Desktop\BSc_Thesis
+cd C:\Users\qkafr\Desktop\hybrid-multimodal-lab-assistant
 .\.venv\Scripts\Activate.ps1
 cd backend
 uvicorn main:app --reload --port 8000
@@ -284,7 +291,7 @@ Wait for `Uvicorn running on http://127.0.0.1:8000`. The first request lazily wa
 ### Terminal 2 — frontend (Vite on :5173)
 
 ```powershell
-cd C:\Users\qkafr\Desktop\BSc_Thesis\frontend
+cd C:\Users\qkafr\Desktop\hybrid-multimodal-lab-assistant\frontend
 npm run dev
 ```
 
@@ -468,7 +475,7 @@ A successful `/api/analyze` (or `python main.py analyze ...`) returns:
 ## Testing and validation
 
 ```powershell
-# Full pytest suite (13 tests, ~20 s)
+# Full pytest suite (27 tests, ~20 s)
 pytest -q
 
 # Specific test file
@@ -490,6 +497,7 @@ The test suite covers:
 - LLM reasoner JSON parsing (with malformed-input regression cases)
 - Retriever hybrid mode (PDF-only / PDF + ChromaDB / fallback)
 - Uncertainty schema correctness
+- CBC multimodal analyser (severity buckets, sex-aware ranges, alias parsing)
 
 ---
 
