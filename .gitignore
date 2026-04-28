@@ -73,9 +73,19 @@ datasets/
 
 # Results and outputs
 results/
-figures/
+# Ignore everything under figures/ except the curated webapp screenshots that
+# are referenced from the thesis (Git won't recurse into a fully-ignored
+# directory, so we ignore the *contents* and re-include what we need).
+figures/*
+!figures/.gitkeep
+!figures/webapp/
+!figures/webapp/**
 logs/
 *.log
+
+# Stale outputs that may appear if the backend is launched from backend/
+backend/results/
+backend/figures/
 
 # ChromaDB
 chroma_db/

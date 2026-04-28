@@ -90,9 +90,16 @@ class BloodSmearPipeline:
             self.reasoner = None
             self.agent = None
         
-        # Output directories
+        # Output directories — resolve relative paths against the repo root so
+        # results/figures land in the canonical top-level folders regardless of
+        # the process cwd (e.g. uvicorn started from backend/).
+        _repo_root = Path(__file__).resolve().parent.parent
         self.results_dir = Path(config.get('pipeline.output.results_dir', 'results'))
+        if not self.results_dir.is_absolute():
+            self.results_dir = _repo_root / self.results_dir
         self.figures_dir = Path(config.get('pipeline.output.figures_dir', 'figures'))
+        if not self.figures_dir.is_absolute():
+            self.figures_dir = _repo_root / self.figures_dir
         self.results_dir.mkdir(exist_ok=True)
         self.figures_dir.mkdir(exist_ok=True)
         

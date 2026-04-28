@@ -2,10 +2,11 @@
 
 Run locally from the ``backend/`` directory:
 
-    uvicorn main:app --reload --port 8000
+    uvicorn main:app --reload --port 8767
 
 The frontend (Vite, port 5173) reaches this server via CORS-allowed
-``http://localhost:8000``.
+``http://localhost:8767``. Override the port via the ``BACKEND_PORT`` env var
+if 8767 is taken; remember to set ``VITE_BACKEND_URL`` on the frontend to match.
 """
 
 from __future__ import annotations
@@ -73,6 +74,8 @@ app = create_app()
 
 
 if __name__ == "__main__":  # pragma: no cover
+    import os
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    port = int(os.environ.get("BACKEND_PORT", "8767"))
+    uvicorn.run("main:app", host="127.0.0.1", port=port, reload=False)

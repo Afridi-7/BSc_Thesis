@@ -232,6 +232,8 @@ def main() -> None:
     parser.add_argument("--medqa-limit", type=int, default=400)
     parser.add_argument("--gold", default="data/finetune/gold.jsonl", type=Path)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--workers", type=int, default=20,
+                        help="Concurrent OpenAI requests (gpt-4o-mini handles 20+ easily).")
     parser.add_argument("--dry-run", action="store_true",
                         help="Skip OpenAI calls; only print chunk count + emit MedQA/gold.")
     args = parser.parse_args()
@@ -255,21 +257,34 @@ def main() -> None:
         from openai import OpenAI  # type: ignore
         client = OpenAI()
 
-        print(f"[2/4] Generating {args.pairs_per_chunk} pairs per chunk via {args.model} …")
-        for i, chunk in enumerate(chunks, 1):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _process(chunk: Dict[str, Any]) -> List[Dict[str, Any]]:
             pairs = generate_pairs_for_chunk(
                 client, args.model, chunk["text"], args.pairs_per_chunk
             )
+            src = chunk["metadata"].get("source") or chunk["metadata"].get("file") or "textbook"
+            local: List[Dict[str, Any]] = []
             for p in pairs:
-                # Append source citation hint into user message so model learns
-                # the citation pattern.
-                src = chunk["metadata"].get("source") or chunk["metadata"].get("file") or "textbook"
                 grounded_answer = p["answer"].rstrip()
                 if "[Reference" not in grounded_answer:
                     grounded_answer += f"\n\nSource: {src}."
-                records.append(to_chat_record(p["question"], grounded_answer))
-            if i % 25 == 0 or i == len(chunks):
-                print(f"      {i}/{len(chunks)} chunks → {len(records)} pairs so far")
+                local.append(to_chat_record(p["question"], grounded_answer))
+            return local
+
+        print(f"[2/4] Generating {args.pairs_per_chunk} pairs per chunk via {args.model} "
+              f"with {args.workers} parallel workers …")
+        done = 0
+        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = [pool.submit(_process, c) for c in chunks]
+            for fut in as_completed(futures):
+                try:
+                    records.extend(fut.result())
+                except Exception as exc:  # noqa: BLE001
+                    print(f"      [warn] chunk failed: {exc}", file=sys.stderr)
+                done += 1
+                if done % 25 == 0 or done == len(chunks):
+                    print(f"      {done}/{len(chunks)} chunks → {len(records)} pairs so far")
     else:
         print("[2/4] --dry-run set; skipping OpenAI calls")
 

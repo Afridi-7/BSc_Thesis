@@ -148,8 +148,15 @@ rag:
       - "hematology.org"
 
 # ============================================================================
-# LLM REASONING PARAMETERS (OpenAI GPT-4o)
+# LLM REASONING PARAMETERS
 # ============================================================================
+# Default: OpenAI GPT-4o (cloud, paid).
+# To switch to the self-hosted domain-expert fine-tune (Afridi07/hematology-llama-3.1-8b-lora),
+# serve it with vLLM / HF Inference Endpoints / RunPod and set:
+#   llm.model_name: "Afridi07/hematology-llama-3.1-8b-lora"
+#   .env -> OPENAI_BASE_URL=https://<your-endpoint>/v1
+#           OPENAI_API_KEY=dummy   (vLLM ignores it; some hosts need a token)
+# Stage 3 talks OpenAI-compatible REST so no code change is required.
 llm:
   # OpenAI API settings
   model_name: "gpt-4o"

@@ -26,7 +26,7 @@ Manual examination of peripheral blood smears under a microscope remains the dia
 
 This thesis presents a complete three-stage pipeline that addresses these gaps. **Stage 1** uses a YOLOv8s detector, fine-tuned on the TXL-PBC dataset (1,260 annotated smears), to localise white blood cells (WBC), red blood cells (RBC), and platelets at *mean Average Precision @ 0.50 IoU = 0.9849* on a held-out test split. **Stage 2** uses an EfficientNet-B0 classifier, fine-tuned on the eight-class PBC dataset of Acevedo *et al.*, to assign WBC subtypes at *99.44 % top-1 test accuracy* over 3,419 samples. Crucially, Stage 2 augments every prediction with **Monte Carlo Dropout** uncertainty estimates (entropy, predictive variance, and a low/medium/high reliability bucket) and **Grad-CAM** saliency maps, so that a clinician can both quantify and visually verify model confidence. **Stage 3** is a Retrieval-Augmented Generation (RAG) layer: 1,049 chunks from two open hematology textbooks are embedded with `all-MiniLM-L6-v2` into a persistent ChromaDB store, and queried by a LangChain ReAct agent built on GPT-4o. The agent has access to five purpose-built tools (knowledge-base search, lab reference ranges, differential interpretation, uncertainty summary, detection counts) and produces a JSON-structured clinical interpretation with grounded citations and an explicit `requires_expert_review` flag.
 
-The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 27 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, uncertainty-schema correctness, and the tabular CBC multimodal analyser. The contribution is not a new model architecture but a **demonstration that established components can be composed into a transparent, uncertainty-aware, citation-grounded multimodal system**, with the explainability properties that current end-to-end blood-smear classifiers lack.
+The system is delivered as a reproducible research artefact comprising a Python library (`src/`), a FastAPI backend, and a React frontend, all driven by a single declarative YAML configuration. End-to-end latency is 8–12 seconds per smear on commodity CPU. A test suite of 14 pytest cases covers configuration validation, batch logic, JSON-mode parsing, retrieval fallback, uncertainty-schema correctness, and CBC-aware reasoning. The contribution is not a new model architecture but a **demonstration that established components can be composed into a transparent, uncertainty-aware, citation-grounded multimodal system**, with the explainability properties that current end-to-end blood-smear classifiers lack.
 
 **Keywords:** medical image analysis, peripheral blood smear, object detection, YOLOv8, fine-grained classification, EfficientNet, Monte Carlo Dropout, Grad-CAM, retrieval-augmented generation, large language models, LangChain, ReAct agent, trustworthy AI, clinical decision support.
 
@@ -74,7 +74,12 @@ I would like to thank my supervisor for the academic guidance and the patience e
 - **Figure 5.1** — Normalised confusion matrix for Stage 2 on the PBC test split.
 - **Figure 5.2** — Stage 2 training curves across Phase 1 (frozen) and Phase 2 (fine-tune).
 - **Figure 5.3** — Qualitative Stage 2 predictions on test images.
-- **Figure 6.1** — End-to-end pipeline output as rendered in the frontend.
+- **Figure 6.1** — Initial UI of the React frontend before any image is uploaded.
+- **Figure 6.2** — Stage 1 detection panel: YOLOv8 bounding-box overlay and per-class counts.
+- **Figure 6.3** — Stage 2 panel: WBC differential, MC-Dropout uncertainty summary, and Grad-CAM saliency.
+- **Figure 6.4** — Stage 3 panel: GPT-4o clinical narrative with citations, differentials, and safety flags.
+- **Figure 6.5** — Agent trace: ReAct tool-call sequence executed during a Stage 3 run.
+- **Figure 6.6** — Raw JSON response returned by `POST /api/analyze`.
 
 ## List of Tables
 
@@ -660,9 +665,19 @@ Few-shot examples are *not* provided; the agent is prompted only by the schema d
 
 ### 6.9 Qualitative output
 
-Figure 6.1 shows a representative end-to-end pipeline output as rendered in the frontend, including the Stage 1 detection overlay, Stage 2 distribution and uncertainty histogram, and the Stage 3 interpretation card with citations.
+Figures 6.1–6.6 show the end-to-end pipeline as rendered in the React frontend on a representative peripheral-blood-smear image (BCCD\_00100.jpg). The frontend exposes every layer of the system — from raw detection output up to the agent’s tool-call trace — so a clinician (or thesis examiner) can audit *how* a conclusion was reached, not just *what* it was.
 
-![Figure 6.1 — End-to-end pipeline output (frontend rendering).](Notebooks/LLM_RAG_Pipline/results/pipeline_output.png)
+![Figure 6.1 — Initial UI before any image is uploaded.](figures/webapp/00_initial_ui.png)
+
+![Figure 6.2 — Stage 1 detection panel with YOLOv8 bounding-box overlay and per-class counts.](figures/webapp/01_detection.png)
+
+![Figure 6.3 — Stage 2 WBC differential, MC-Dropout uncertainty summary, and Grad-CAM saliency for each cropped WBC.](figures/webapp/02_classification_gradcam.png)
+
+![Figure 6.4 — Stage 3 clinical reasoning narrative produced by the GPT-4o agent, with key findings, differential diagnoses tagged by citation, recommendations, and safety flags.](figures/webapp/03_reasoning.png)
+
+![Figure 6.5 — Agent trace: the ReAct tool-call sequence (lookup\_lab\_reference\_ranges, query\_knowledge\_base, get\_uncertainty\_summary) executed by the LangChain agent en route to the Stage 3 narrative.](figures/webapp/04_agent_trace.png)
+
+![Figure 6.6 — Raw JSON response returned by `POST /api/analyze`, including metadata, per-stage outputs, and execution time — the source of truth for downstream reproducibility audits.](figures/webapp/05_raw_response.png)
 
 ### 6.10 Why an agent, not a single LLM call?
 
@@ -704,11 +719,11 @@ The HTTP layer is intentionally minimal:
 | [backend/services/visualization.py](backend/services/visualization.py) | Renders bounding-box overlay PNG and base64-encodes it. |
 | [backend/schemas.py](backend/schemas.py) | Pydantic request/response DTOs mirroring the pipeline's dataclasses. |
 
-The lazy-initialisation pattern is deliberate: cold start of the FastAPI process is < 1 second; the first request pays the ~10 s pipeline warm-up cost, all subsequent requests are sub-second on the I/O path.
+The lazy-initialisation pattern is deliberate: cold start of the FastAPI process is < 1 second; the first request pays the ~10 s pipeline warm-up cost, all subsequent requests are sub-second on the I/O path. The backend is also **working-directory independent** — relative paths in `config.yaml` (PDFs, ChromaDB, results, figures) are resolved against the repository root, so `cd backend; uvicorn main:app --port 8767` produces exactly the same on-disk layout as launching from the repo root.
 
 ### 7.3 React + TypeScript frontend
 
-The single-page application uses Vite with TypeScript, with the proxy directing `/api/*` to `http://localhost:8000`. Five panels stack top-to-bottom:
+The single-page application uses Vite with TypeScript, with the proxy directing `/api/*` to `http://localhost:8767`. Five panels stack top-to-bottom:
 
 1. **Detection** — annotated overlay (boxes color-coded per class) and per-class count chips.
 2. **Classification** — class-distribution bar chart and per-cell row with confidence and uncertainty bucket.
@@ -728,7 +743,7 @@ Three mechanisms ensure reproducibility:
 
 ### 7.5 Test suite
 
-Twenty-seven Pytest cases (`tests/`) cover:
+Fourteen Pytest cases (`tests/`) cover:
 
 | Test file | Concern |
 |---|---|
@@ -738,9 +753,9 @@ Twenty-seven Pytest cases (`tests/`) cover:
 | `test_reasoner_parsing.py` | LLM JSON parser handles malformed and partial outputs. |
 | `test_retriever_hybrid_mode.py` | Retriever fallback when ChromaDB absent / when web augmentation fails. |
 | `test_uncertainty_schema.py` | Stage-2 output structure is well-formed and bucket thresholds are consistent. |
-| `test_cbc_analyzer.py` | Tabular CBC analyser: sex-aware ranges, severity buckets, alias keys, custom-range overrides, prompt formatting. |
+| `test_cbc_analyzer.py` | Optional CBC-aware reasoning path is parsed and integrated correctly. |
 
-All 27 tests pass in CI on a clean checkout.
+All tests pass in CI on a clean checkout.
 
 ---
 
@@ -857,7 +872,7 @@ The four research questions posed in [§1.3](#13-research-questions) can each be
 - **RQ1 (detection)**: YOLOv8s fine-tuned on a 1,260-image dataset reaches mAP@0.50 = 0.9849 — clinically meaningful in the sense that it correctly localises the cells of interest in essentially every test image, with WBC recall of 1.00.
 - **RQ2 (classification with uncertainty)**: EfficientNet-B0 + MC-Dropout + Grad-CAM achieves 99.44 % top-1 accuracy, while bucketing approximately 1–2 % of cells into `medium`/`high` uncertainty — a rate that closely matches the empirical error rate, demonstrating that the uncertainty signal is well-correlated with actual mistakes.
 - **RQ3 (agentic clinical reasoning)**: A LangChain ReAct agent over GPT-4o, equipped with five domain-specific tools, produces JSON-structured interpretations with grounded citations and a deterministic `requires_expert_review` flag, validated on 50 held-out samples with 100 % schema-validity rate.
-- **RQ4 (deployable artefact)**: The system is delivered as a single repository with one `requirements.txt`, one `config.yaml`, one `.env`, a 27-test pytest suite, and a frontend that runs in the browser. A user with Python and Node installed can be running the full pipeline in under five minutes.
+- **RQ4 (deployable artefact)**: The system is delivered as a single repository with one `requirements.txt`, one `config.yaml`, one `.env`, a 13-test pytest suite, and a frontend that runs in the browser. A user with Python and Node installed can be running the full pipeline in under five minutes.
 
 ### 10.2 The value of staging
 
@@ -912,7 +927,7 @@ Five avenues are most promising:
 
 1. **Multi-source generalisation.** Re-evaluate Stages 1 and 2 on a smear corpus from a different institution / microscope / stain protocol (e.g. the LISC dataset or a private hospital partnership). Quantify accuracy drop and recover with domain adaptation.
 2. **Calibration study.** Compare MC-Dropout (T = 20) against deep ensembles (N = 5) and Laplace approximation on Stage 2, reporting expected calibration error, Brier score, and AUROC of uncertainty as an error predictor.
-3. **Domain-specialised reasoner.** The current Stage 3 uses a general-purpose GPT-4o grounded by RAG. A self-hostable, *domain-expert* alternative is provided in this repository as a complete, runnable recipe: `Notebooks/Domain_Expert_Finetune/` contains a Colab notebook that QLoRA-fine-tunes Llama-3.1-8B on (a) ~2 000 synthetic Q&A pairs generated by GPT-4o from the existing 1 049 textbook chunks in the project's ChromaDB, (b) a hematology-keyword subset of MedQA-USMLE, and (c) hand-written gold examples for refusal, citation format, and cross-modal CBC reasoning. The companion `scripts/build_finetune_dataset.py` builds the supervised dataset directly from the project's vector store; `scripts/evaluate_finetuned_model.py` runs an MCQ-accuracy + GPT-4-as-judge ablation against the GPT-4o baseline. Because Stage 3 is provider-agnostic (any OpenAI-compatible endpoint via `OPENAI_BASE_URL`), the resulting LoRA adapter served via vLLM drops in with zero code changes — only a `config.yaml` edit. A formal ablation comparing baseline vs domain-fine-tuned on faithfulness, clinical correctness, and calibration is left as the headline future-work experiment.
+3. **Domain-specialised reasoner.** The current Stage 3 uses a general-purpose GPT-4o grounded by RAG. A self-hostable, *domain-expert* alternative was built and trained as part of this thesis: an 8B-parameter Llama-3.1-Instruct model QLoRA-fine-tuned on **2 098 grounded Q&A pairs** synthesised by GPT-4o from the project's 1 049 textbook chunks in ChromaDB. The resulting LoRA adapter is publicly hosted at <https://huggingface.co/Afridi07/hematology-llama-3.1-8b-lora> (≈50 MB). The reproducible pipeline lives in this repository: `Notebooks/Domain_Expert_Finetune/domain_expert_finetune.ipynb` runs the QLoRA on a free Colab T4; `scripts/build_finetune_dataset.py` builds the dataset directly from the project's vector store; `scripts/evaluate_finetuned_model.py` runs an MCQ-accuracy + GPT-4-as-judge ablation against the GPT-4o baseline. Because Stage 3 is provider-agnostic (any OpenAI-compatible endpoint via `OPENAI_BASE_URL`), the adapter served via vLLM drops in with **zero code changes** — only a `config.yaml` edit. A formal ablation comparing baseline vs domain-fine-tuned on faithfulness, clinical correctness, and calibration is left as the headline future-work experiment.
 4. **Whole-slide imaging extension.** Generalise from single-field smears to whole-slide images by tiling, running Stage 1 per tile, and aggregating WBC distributions over the whole slide.
 5. **Formal clinical evaluation.** A prospective study: 100 smears, three board-certified hematologists, two arms (with vs without the system), measure inter-rater agreement, time-to-report, and concordance with consensus reads.
 
@@ -1062,44 +1077,83 @@ hybrid-multimodal-lab-assistant/
 ├── .env / .env.example       # OPENAI_API_KEY (gitignored)
 ├── README.md                 # Operator-facing documentation
 ├── THESIS.md                 # ← this document
+├── start.ps1                 # One-click Windows launcher (backend + frontend)
 │
-├── src/                      # Domain library
-│   ├── pipeline.py
-│   ├── config/
-│   ├── detection/
-│   ├── classification/
-│   ├── multimodal/           # Tabular CBC analyser (optional second modality)
-│   ├── rag/
-│   └── utils/
+├── src/                      # Domain library — pure Python, no web concerns
+│   ├── pipeline.py           # The BloodSmearPipeline orchestrator
+│   ├── config/               # YAML loader + dataclass validation
+│   ├── detection/            # Stage 1: YOLOv8 wrapper
+│   ├── classification/       # Stage 2: EfficientNet + MC-Dropout + Grad-CAM
+│   ├── rag/                  # Stage 3: PDF processor, retriever, ReAct agent
+│   ├── multimodal/           # CBC-aware reasoning helpers
+│   └── utils/                # Logging, metrics, validators, helpers
 │
-├── backend/                  # FastAPI HTTP layer
-│   ├── main.py
-│   ├── version.py
-│   ├── dependencies.py
-│   ├── schemas.py
-│   ├── routes/
-│   └── services/
+├── backend/                  # FastAPI HTTP layer (thin shell over src/)
+│   ├── main.py               # ASGI app; sys.path-injects repo root
+│   ├── version.py            # Single source of API version string
+│   ├── config.py             # Web-server settings (CORS, upload limits)
+│   ├── dependencies.py       # Lazy-loaded pipeline singleton
+│   ├── schemas.py            # Pydantic response models
+│   ├── routes/               # /api/health, /api/samples, /api/analyze
+│   └── services/             # Image-handling helpers
 │
 ├── frontend/                 # Vite + React + TypeScript SPA
 │   ├── package.json
-│   ├── vite.config.ts
-│   └── src/
+│   ├── vite.config.ts        # Dev-time /api proxy → http://localhost:8767
+│   └── src/                  # Components, types, hooks
 │
-├── models/                   # .pt checkpoints
+├── models/                   # .pt checkpoints (YOLOv8s, EfficientNet)
 ├── data/
-│   ├── pdfs/                 # Stage-3 corpus
-│   └── chroma_db/            # Persisted vector store
-├── examples/                 # Demo scripts
-├── scripts/                  # Dev utilities (diag_yolo, fine-tune builders)
-├── tests/                    # 27 pytest cases
-├── Notebooks/                # Training + evaluation notebooks
+│   ├── pdfs/                 # Stage-3 textbook corpus (2 PDFs)
+│   ├── chroma_db/            # Persisted vector store
+│   └── finetune/             # QLoRA training JSONL (optional)
+│
+├── examples/                 # Standalone demo scripts
+│   ├── single_image_inference.py
+│   ├── batch_inference.py
+│   ├── custom_configuration.py
+│   └── sample_images/        # 5 demo smears served by /api/samples
+│
+├── scripts/                  # One-off operational utilities
+│   ├── build_finetune_dataset.py
+│   ├── evaluate_finetuned_model.py
+│   ├── diag_yolo.py
+│   └── snap.ps1              # Clipboard → figures/webapp/<name>.png
+│
+├── tests/                    # 14 pytest cases
+│
+├── Notebooks/                # Training + evaluation notebooks (Colab-ready)
 │   ├── YOLOv8_detection/
 │   ├── Efficientnet_classification/
 │   ├── LLM_RAG_Pipline/
-│   └── Domain_Expert_Finetune/   # QLoRA recipe for a self-hosted domain LLM
-├── results/                  # Per-run JSON artefacts
-└── logs/                     # Timestamped log files
+│   └── Domain_Expert_Finetune/   # QLoRA fine-tune of LLaMA-3.1-8B
+│
+├── figures/
+│   └── webapp/               # Frontend screenshots referenced from §6.9
+│
+├── results/                  # Per-run stage*.json artefacts (gitignored)
+└── logs/                     # Timestamped pipeline logs (gitignored)
 ```
+
+A few notes on layout choices that matter for reproducibility:
+
+- **One library, multiple consumers.** `src/` is the only place clinical
+  logic lives. The CLI (`main.py`), backend, examples, notebooks, and tests
+  all import from `src.*` — so there is exactly one definition of, e.g.,
+  the uncertainty bucket thresholds or the Grad-CAM blend factor.
+- **Backend is a thin shell.** `backend/` contains *only* HTTP concerns
+  (CORS, upload size limits, JSON serialisation, sample serving). Removing
+  the entire web layer would not break the CLI, the tests, or any notebook.
+- **Working-directory independence.** Both the retriever (PDF / ChromaDB
+  paths) and the pipeline (results / figures dirs) resolve relative paths
+  against the repository root, so `cd backend; uvicorn main:app ...`
+  produces the same on-disk layout as launching from the repo root.
+- **No duplicated configuration.** `config.yaml` is the single source of
+  truth for every model path, threshold, prompt template, and agent budget.
+  `backend/config.py` only holds web-server concerns.
+- **Curated artefacts vs. ephemera.** `figures/webapp/` is checked in
+  (referenced from this thesis); `figures/` otherwise, plus `results/` and
+  `logs/`, are gitignored runtime ephemera.
 
 ---
 

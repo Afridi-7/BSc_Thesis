@@ -18,21 +18,6 @@ from sentence_transformers import SentenceTransformer
 from src.config.config_loader import Config
 from src.rag.pdf_processor import process_pdf_library, validate_pdf_library
 
-# Project root (two levels up from this file: src/rag/retriever.py -> repo root)
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _resolve_repo_path(path_str: str) -> str:
-    """Resolve a configured path against the project root if it's relative.
-
-    This makes RAG asset lookups robust to the current working directory
-    (e.g. running uvicorn from the ``backend/`` folder).
-    """
-    p = Path(path_str)
-    if p.is_absolute():
-        return str(p)
-    return str((_PROJECT_ROOT / p).resolve())
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,11 +32,16 @@ class ClinicalRetriever:
             config: Configuration object with RAG parameters
         """
         self.config = config
-        
+
         # Load configuration
-        self.pdf_directory = _resolve_repo_path(
-            config.get('rag.pdf_directory', 'LLM_RAG_Pipline/pdfs')
-        )
+        self.pdf_directory = config.get('rag.pdf_directory', 'LLM_RAG_Pipline/pdfs')
+        # Resolve relative pdf_directory against the repo root so that the
+        # pipeline works regardless of the process's current working directory
+        # (e.g., uvicorn launched from backend/ instead of repo root).
+        _pdf_path = Path(self.pdf_directory)
+        if not _pdf_path.is_absolute():
+            _repo_root = Path(__file__).resolve().parent.parent.parent
+            self.pdf_directory = str((_repo_root / _pdf_path).resolve())
         self.pdf_sources = config.get('rag.pdf_sources', [])
         self.pdf_missing_strategy = config.get('rag.pdf_missing_strategy', 'fail')
         self.pdf_download_base_url = config.get('rag.pdf_download_base_url', '')
@@ -86,9 +76,13 @@ class ClinicalRetriever:
         
         # Vector store configuration
         self.vector_store_type = config.get('rag.vector_store.type', 'chromadb')
-        self.chromadb_path = _resolve_repo_path(
-            config.get('rag.vector_store.chromadb_path', 'LLM_RAG_Pipline/chroma_db')
-        )
+        self.chromadb_path = config.get('rag.vector_store.chromadb_path', 'LLM_RAG_Pipline/chroma_db')
+        # Resolve relative chromadb_path against the repo root for the same
+        # cwd-independence reason as pdf_directory above.
+        _chroma_path = Path(self.chromadb_path)
+        if not _chroma_path.is_absolute():
+            _repo_root = Path(__file__).resolve().parent.parent.parent
+            self.chromadb_path = str((_repo_root / _chroma_path).resolve())
         self.collection_name = config.get('rag.vector_store.collection_name', 'hematology_knowledge')
         
         # Storage
